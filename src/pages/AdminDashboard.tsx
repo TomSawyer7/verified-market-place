@@ -1,18 +1,18 @@
-import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { useMarketplace } from '@/contexts/MarketplaceContext';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { TrustScoreBadge } from '@/components/TrustBadge';
-import { ShieldCheck, ShieldAlert, FileWarning, Users, CheckCircle, XCircle } from 'lucide-react';
+import { ShieldCheck, ShieldAlert, FileWarning, Users, CheckCircle } from 'lucide-react';
 import { toast } from 'sonner';
+import VerificationReviewCard from '@/components/admin/VerificationReviewCard';
 
 const AdminDashboard = () => {
   const { user, isAdmin, updateTrustScore, updateVerificationStatus, allUsers } = useAuth();
-  const { verificationRequests, reports, updateVerificationRequest, updateReportStatus, transactions } = useMarketplace();
+  const { verificationRequests, reports, updateVerificationRequest, updateReportStatus } = useMarketplace();
   const navigate = useNavigate();
 
   if (!user || !isAdmin) { navigate('/'); return null; }
@@ -21,29 +21,37 @@ const AdminDashboard = () => {
   const pendingBiometric = verificationRequests.filter(v => v.type === 'biometric' && v.status === 'pending');
   const pendingReports = reports.filter(r => r.status === 'pending');
 
+  const getUserEmail = (userId: string) => allUsers.find(u => u.id === userId)?.email || '';
+
   const handleApprovePhilsys = (req: typeof verificationRequests[0]) => {
     updateVerificationRequest(req.id, 'approved');
     updateVerificationStatus(req.userId, 'philsys_approved');
     updateTrustScore(req.userId, 15);
-    toast.success(`PhilSys verification approved for ${req.userName}. +15 trust score.`);
+    toast.success(`PhilSys approved for ${req.userName}. +15 trust score.`);
   };
 
   const handleApproveBiometric = (req: typeof verificationRequests[0]) => {
     updateVerificationRequest(req.id, 'approved');
     updateVerificationStatus(req.userId, 'fully_verified');
     updateTrustScore(req.userId, 25);
-    toast.success(`Biometric verification approved for ${req.userName}. Now fully verified! +25 trust score.`);
+    toast.success(`Biometric approved for ${req.userName}. Fully verified! +25 trust score.`);
   };
 
   const handleRejectVerification = (req: typeof verificationRequests[0]) => {
     updateVerificationRequest(req.id, 'rejected');
-    toast.info(`Verification rejected for ${req.userName}.`);
+    // Reset user status so they can resubmit
+    if (req.type === 'philsys') {
+      updateVerificationStatus(req.userId, 'unverified');
+    } else {
+      updateVerificationStatus(req.userId, 'philsys_approved');
+    }
+    toast.info(`Verification rejected for ${req.userName}. User can resubmit.`);
   };
 
   const handleAcceptReport = (report: typeof reports[0]) => {
     updateReportStatus(report.id, 'accepted');
     updateTrustScore(report.reportedUserId, -15);
-    toast.success(`Report accepted. ${report.reportedUserName} trust score reduced by 15.`);
+    toast.success(`Report accepted. ${report.reportedUserName} trust score -15.`);
   };
 
   const handleDismissReport = (report: typeof reports[0]) => {
@@ -54,10 +62,11 @@ const AdminDashboard = () => {
   return (
     <div className="container py-8">
       <div className="mb-8 animate-fade-in">
-        <h1 className="text-3xl font-bold">Admin Dashboard</h1>
+        <h1 className="text-3xl font-bold text-foreground">Admin Dashboard</h1>
         <p className="text-muted-foreground">Manage verifications, reports, and users</p>
       </div>
 
+      {/* Stats */}
       <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 mb-8">
         {[
           { label: 'PhilSys Pending', value: pendingPhilsys.length, icon: ShieldAlert, color: 'text-pending' },
@@ -91,27 +100,13 @@ const AdminDashboard = () => {
           ) : (
             <div className="space-y-4">
               {pendingPhilsys.map(req => (
-                <Card key={req.id} className="animate-fade-in">
-                  <CardContent className="p-4">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <h3 className="font-semibold text-foreground">{req.userName}</h3>
-                        <p className="text-sm text-muted-foreground">Submitted: {req.submittedAt}</p>
-                        <div className="mt-2 w-32 h-20 bg-muted rounded flex items-center justify-center text-xs text-muted-foreground">
-                          PhilSys Screenshot
-                        </div>
-                      </div>
-                      <div className="flex gap-2">
-                        <Button size="sm" onClick={() => handleApprovePhilsys(req)}>
-                          <CheckCircle className="h-4 w-4 mr-1" /> Approve
-                        </Button>
-                        <Button variant="destructive" size="sm" onClick={() => handleRejectVerification(req)}>
-                          <XCircle className="h-4 w-4 mr-1" /> Reject
-                        </Button>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
+                <VerificationReviewCard
+                  key={req.id}
+                  request={req}
+                  userEmail={getUserEmail(req.userId)}
+                  onApprove={handleApprovePhilsys}
+                  onReject={handleRejectVerification}
+                />
               ))}
             </div>
           )}
@@ -123,28 +118,13 @@ const AdminDashboard = () => {
           ) : (
             <div className="space-y-4">
               {pendingBiometric.map(req => (
-                <Card key={req.id} className="animate-fade-in">
-                  <CardContent className="p-4">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <h3 className="font-semibold text-foreground">{req.userName}</h3>
-                        <p className="text-sm text-muted-foreground">Submitted: {req.submittedAt}</p>
-                        <div className="flex gap-2 mt-2">
-                          <div className="w-20 h-20 bg-muted rounded flex items-center justify-center text-xs text-muted-foreground">ID Photo</div>
-                          <div className="w-20 h-20 bg-muted rounded flex items-center justify-center text-xs text-muted-foreground">Selfie</div>
-                        </div>
-                      </div>
-                      <div className="flex gap-2">
-                        <Button size="sm" onClick={() => handleApproveBiometric(req)}>
-                          <CheckCircle className="h-4 w-4 mr-1" /> Approve
-                        </Button>
-                        <Button variant="destructive" size="sm" onClick={() => handleRejectVerification(req)}>
-                          <XCircle className="h-4 w-4 mr-1" /> Reject
-                        </Button>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
+                <VerificationReviewCard
+                  key={req.id}
+                  request={req}
+                  userEmail={getUserEmail(req.userId)}
+                  onApprove={handleApproveBiometric}
+                  onReject={handleRejectVerification}
+                />
               ))}
             </div>
           )}
