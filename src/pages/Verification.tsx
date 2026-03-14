@@ -71,8 +71,6 @@ const Verification = () => {
     return parseInt(localStorage.getItem(key) || '0', 10);
   });
 
-  if (!user) { navigate('/login'); return null; }
-
   const addAuditEntry = useCallback((action: string, type: AuditEntry['type'], details?: string) => {
     setAuditLog(prev => [...prev, {
       id: `audit-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
