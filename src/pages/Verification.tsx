@@ -89,6 +89,8 @@ const Verification = () => {
 
   const isRateLimited = dailyAttempts >= MAX_DAILY_ATTEMPTS;
 
+  if (!user) { navigate('/login'); return null; }
+
   // Check if user has a rejected request (can resubmit)
   const userPhilsysRequests = verificationRequests.filter(
     v => v.userId === user.id && v.type === 'philsys'
