@@ -13,7 +13,7 @@ import {
 import { toast } from 'sonner';
 import { useNavigate } from 'react-router-dom';
 
-const PHILSYS_URL = 'https://verify.philsys.gov.ph';
+const PHILSYS_URL = 'https://everify.gov.ph/check';
 
 const StepIndicator = ({ step, label, isActive, isDone }: {
   step: number; label: string; isActive: boolean; isDone: boolean;
