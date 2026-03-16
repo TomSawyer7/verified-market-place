@@ -8,7 +8,7 @@ import { Progress } from '@/components/ui/progress';
 import { Input } from '@/components/ui/input';
 import {
   Upload, Camera, ShieldCheck, AlertCircle, ExternalLink,
-  CheckCircle, XCircle, Clock, FileImage, ArrowRight, Info
+  CheckCircle, XCircle, Clock, FileImage, ArrowRight, Info, QrCode
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useNavigate } from 'react-router-dom';
@@ -18,8 +18,9 @@ import AntiSpoofingCheck from '@/components/verification/AntiSpoofingCheck';
 import DocumentExpiryCheck from '@/components/verification/DocumentExpiryCheck';
 import AuditTrail, { AuditEntry } from '@/components/verification/AuditTrail';
 import SecurityBadges from '@/components/verification/SecurityBadges';
+import PhilIDQRScanner, { PhilIDData } from '@/components/verification/PhilIDQRScanner';
+import PhilIDDataMatch from '@/components/verification/PhilIDDataMatch';
 
-const PHILSYS_URL = 'https://everify.gov.ph/check';
 const MAX_DAILY_ATTEMPTS = 3;
 
 const StepIndicator = ({ step, label, isActive, isDone }: {
@@ -43,17 +44,19 @@ const Verification = () => {
   const { user, updateVerificationStatus } = useAuth();
   const { submitVerification, verificationRequests } = useMarketplace();
   const navigate = useNavigate();
-  const philsysFileRef = useRef<HTMLInputElement>(null);
   const idFileRef = useRef<HTMLInputElement>(null);
   const selfieFileRef = useRef<HTMLInputElement>(null);
 
-  const [philsysFile, setPhilsysFile] = useState<File | null>(null);
-  const [philsysPreview, setPhilsysPreview] = useState<string | null>(null);
   const [idFile, setIdFile] = useState<File | null>(null);
   const [idPreview, setIdPreview] = useState<string | null>(null);
   const [selfieFile, setSelfieFile] = useState<File | null>(null);
   const [selfiePreview, setSelfiePreview] = useState<string | null>(null);
   const [notes, setNotes] = useState('');
+
+  // PhilID QR state
+  const [philIdData, setPhilIdData] = useState<PhilIDData | null>(null);
+  const [philIdMatched, setPhilIdMatched] = useState<boolean | null>(null);
+  const [philIdMatchScore, setPhilIdMatchScore] = useState(0);
 
   // Security state
   const [livenessPassed, setLivenessPassed] = useState(false);
@@ -91,7 +94,6 @@ const Verification = () => {
 
   if (!user) { navigate('/login'); return null; }
 
-  // Check if user has a rejected request (can resubmit)
   const userPhilsysRequests = verificationRequests.filter(
     v => v.userId === user.id && v.type === 'philsys'
   );
@@ -130,23 +132,27 @@ const Verification = () => {
       toast.error(`Maximum ${MAX_DAILY_ATTEMPTS} verification attempts per day. Please try again tomorrow.`);
       return;
     }
-    if (!philsysFile) {
-      toast.error('Please upload your PhilSys verification screenshot first.');
+    if (!philIdData) {
+      toast.error('Please scan your PhilID QR code first.');
+      return;
+    }
+    if (philIdMatched === false) {
+      toast.error('PhilID data does not match your registered identity. Please check your information.');
       return;
     }
     incrementAttempts();
-    addAuditEntry('PhilSys verification submitted', 'info', 'Awaiting admin review');
+    addAuditEntry('PhilSys QR verification submitted', 'info', `Match score: ${philIdMatchScore}%, PCRN: ${philIdData.pcrn}`);
     submitVerification({
       userId: user.id,
       userName: user.name,
       type: 'philsys',
-      philsysScreenshot: philsysPreview || '/placeholder.svg',
+      philsysScreenshot: `/philid-qr-verified-${philIdData.pcrn}`,
     });
     updateVerificationStatus(user.id, 'philsys_pending');
-    setPhilsysFile(null);
-    setPhilsysPreview(null);
+    setPhilIdData(null);
+    setPhilIdMatched(null);
     setNotes('');
-    toast.success('PhilSys verification submitted! Please wait for admin review.');
+    toast.success('PhilSys QR verification submitted! Please wait for admin review.');
   };
 
   const handleSubmitBiometric = () => {
@@ -196,9 +202,9 @@ const Verification = () => {
   const getCurrentStep = () => {
     if (status === 'unverified' || philsysRejected) return 1;
     if (status === 'philsys_pending') return 3;
-    if (status === 'philsys_approved' || biometricRejected) return 5;
-    if (status === 'biometric_pending') return 6;
-    if (status === 'fully_verified') return 7;
+    if (status === 'philsys_approved' || biometricRejected) return 4;
+    if (status === 'biometric_pending') return 5;
+    if (status === 'fully_verified') return 6;
     return 1;
   };
 
@@ -210,13 +216,12 @@ const Verification = () => {
     10;
 
   const stepLabels = [
-    'Open PhilSys', 'Verify on PhilSys', 'Take Screenshot',
-    'Upload Proof', 'Admin Review', 'Biometric', 'Verified'
+    'Scan QR', 'Verify Data', 'Admin Review',
+    'Biometric', 'Liveness + Face', 'Verified'
   ];
 
   const canSubmitPhilsys = status === 'unverified' || philsysRejected;
   const canSubmitBiometric = (status === 'philsys_approved' || biometricRejected);
-
   const biometricReady = livenessPassed && idFile && selfieFile && documentValid && faceMatched !== false;
 
   return (
@@ -271,7 +276,7 @@ const Verification = () => {
         </CardContent>
       </Card>
 
-      {/* === STEP 1: PhilSys Verification === */}
+      {/* === STEP 1: PhilID QR Verification === */}
       <Card className={`mb-6 animate-fade-in transition-all ${
         ['philsys_approved', 'biometric_pending', 'fully_verified'].includes(status)
           ? 'border-verified/50 bg-verified/5' : ''
@@ -288,15 +293,15 @@ const Verification = () => {
               {['philsys_approved', 'biometric_pending', 'fully_verified'].includes(status) ? '✓' : '1'}
             </div>
             <div>
-              <CardTitle className="text-lg">Step 1: PhilSys Verification</CardTitle>
-              <CardDescription>Verify your identity through the Philippine Identification System</CardDescription>
+              <CardTitle className="text-lg">Step 1: PhilID QR Code Verification</CardTitle>
+              <CardDescription>Scan the QR code on your PhilID to verify your identity offline</CardDescription>
             </div>
           </div>
         </CardHeader>
         <CardContent className="space-y-4">
           {['philsys_approved', 'biometric_pending', 'fully_verified'].includes(status) && (
             <div className="flex items-center gap-2 text-verified font-medium">
-              <CheckCircle className="h-5 w-5" /> PhilSys Verified — Approved by Admin
+              <CheckCircle className="h-5 w-5" /> PhilID Verified — Approved by Admin
             </div>
           )}
 
@@ -306,7 +311,7 @@ const Verification = () => {
                 <Clock className="h-5 w-5" /> Pending Admin Review
               </div>
               <p className="text-sm text-muted-foreground">
-                Your PhilSys screenshot has been submitted. An admin will review your verification request.
+                Your PhilID QR data has been submitted. An admin will review your verification request.
                 This may take 24-48 hours.
               </p>
             </div>
@@ -318,8 +323,7 @@ const Verification = () => {
                 <XCircle className="h-5 w-5" /> Verification Rejected
               </div>
               <p className="text-sm text-muted-foreground">
-                Your previous PhilSys verification was rejected. Please ensure the screenshot clearly shows
-                your verification success page and try again.
+                Your previous PhilID verification was rejected. Please ensure you scan the correct QR code from your PhilID card.
               </p>
             </div>
           )}
@@ -329,14 +333,14 @@ const Verification = () => {
               <div className="rounded-lg border border-border bg-muted/50 p-4">
                 <div className="flex items-start gap-2 mb-3">
                   <Info className="h-5 w-5 text-primary mt-0.5 shrink-0" />
-                  <p className="font-medium text-foreground text-sm">How to verify with PhilSys:</p>
+                  <p className="font-medium text-foreground text-sm">How PhilID QR Verification works:</p>
                 </div>
                 <ol className="space-y-2 text-sm text-muted-foreground ml-7">
                   {[
-                    'Click the button below to open the official PhilSys verification website',
-                    'Complete the verification process on the PhilSys website',
-                    'Take a screenshot of the success/confirmation page',
-                    'Upload the screenshot below and submit for admin review',
+                    'Position the QR code on the back of your PhilID card in front of your camera',
+                    'The system reads and decodes the digitally-signed data from the QR code',
+                    'Your identity is verified by matching QR data with your registered account',
+                    'The digital signature from PSA is validated to ensure the PhilID is authentic',
                   ].map((text, i) => (
                     <li key={i} className="flex items-start gap-2">
                       <span className="bg-primary text-primary-foreground rounded-full h-5 w-5 flex items-center justify-center text-[10px] font-bold shrink-0 mt-0.5">{i + 1}</span>
@@ -346,53 +350,45 @@ const Verification = () => {
                 </ol>
               </div>
 
-              <Button
-                variant="outline"
-                className="w-full h-12 text-base gap-2"
-                onClick={() => {
-                  window.open(PHILSYS_URL, '_blank');
-                  addAuditEntry('Opened PhilSys website', 'info', PHILSYS_URL);
+              {/* QR Scanner */}
+              <PhilIDQRScanner
+                disabled={isRateLimited}
+                onScanComplete={(data) => {
+                  setPhilIdData(data);
+                  addAuditEntry('PhilID QR scanned', 'security', `PCRN: ${data.pcrn}, Name: ${data.lastName}, ${data.firstName}`);
+                  if (data.signatureValid) {
+                    addAuditEntry('Digital signature verified', 'security', 'PSA signature valid');
+                  } else {
+                    addAuditEntry('Digital signature INVALID', 'error', 'Possible forged PhilID');
+                  }
                 }}
-              >
-                <ExternalLink className="h-5 w-5" />
-                Open PhilSys Verification Website
-                <ArrowRight className="h-4 w-4 ml-auto" />
-              </Button>
-
-              <div className="rounded-lg border-2 border-dashed border-border p-6 text-center hover:border-primary/50 transition-colors">
-                <input
-                  ref={philsysFileRef}
-                  type="file"
-                  accept="image/*"
-                  className="hidden"
-                  onChange={(e) => handleFileSelect(e.target.files?.[0], setPhilsysFile, setPhilsysPreview, 'PhilSys screenshot')}
-                />
-                {philsysPreview ? (
-                  <div className="space-y-3">
-                    <img src={philsysPreview} alt="PhilSys Screenshot" className="max-h-48 mx-auto rounded-lg border border-border" />
-                    <p className="text-sm text-foreground font-medium">{philsysFile?.name}</p>
-                    <Button variant="ghost" size="sm" onClick={() => philsysFileRef.current?.click()}>
-                      Change Image
-                    </Button>
-                  </div>
-                ) : (
-                  <div className="cursor-pointer" onClick={() => philsysFileRef.current?.click()}>
-                    <FileImage className="h-12 w-12 text-muted-foreground mx-auto mb-3" />
-                    <p className="font-medium text-foreground">Upload PhilSys Success Screenshot</p>
-                    <p className="text-sm text-muted-foreground mt-1">Click to browse or drag and drop</p>
-                    <p className="text-xs text-muted-foreground mt-1">PNG, JPG up to 5MB</p>
-                  </div>
-                )}
-              </div>
-
-              {/* Anti-spoofing on PhilSys screenshot */}
-              <AntiSpoofingCheck
-                imageDataUrl={philsysPreview}
-                label="PhilSys Screenshot"
-                onResult={(passed) => {
-                  addAuditEntry('Anti-spoofing check', 'security', passed ? 'Passed' : 'Flagged for review');
+                onError={(err) => {
+                  addAuditEntry('QR scan failed', 'error', err);
                 }}
               />
+
+              {/* Data Match */}
+              {philIdData && (
+                <PhilIDDataMatch
+                  philIdData={philIdData}
+                  registeredName={user.name}
+                  onMatchResult={(matched, score) => {
+                    setPhilIdMatched(matched);
+                    setPhilIdMatchScore(score);
+                    addAuditEntry('Identity data match', 'security', `Score: ${score}% — ${matched ? 'Match' : 'Mismatch'}`);
+                  }}
+                />
+              )}
+
+              {/* Face match from QR photo vs selfie (if QR has embedded photo) */}
+              {philIdData?.photo && (
+                <div className="rounded-lg border border-border bg-muted/30 p-3">
+                  <p className="text-xs text-muted-foreground">
+                    <Info className="h-3.5 w-3.5 inline mr-1" />
+                    Photo extracted from PhilID QR will be used for face matching in Step 2.
+                  </p>
+                </div>
+              )}
 
               <div>
                 <label className="text-sm font-medium text-foreground mb-1.5 block">Additional Notes (optional)</label>
@@ -406,10 +402,10 @@ const Verification = () => {
               <Button
                 className="w-full h-11"
                 onClick={handleSubmitPhilsys}
-                disabled={!philsysFile}
+                disabled={!philIdData || philIdMatched === false}
               >
                 <Upload className="h-4 w-4 mr-2" />
-                Submit for Admin Review
+                Submit PhilID Verification for Admin Review
               </Button>
             </>
           )}
@@ -472,7 +468,7 @@ const Verification = () => {
           {!canSubmitBiometric && status !== 'biometric_pending' && status !== 'fully_verified' && (
             <div className="flex items-center gap-2 text-muted-foreground">
               <AlertCircle className="h-5 w-5" />
-              <p className="text-sm">Complete PhilSys verification first to unlock this step.</p>
+              <p className="text-sm">Complete PhilID QR verification first to unlock this step.</p>
             </div>
           )}
 
@@ -540,7 +536,6 @@ const Verification = () => {
                 onComplete={(passed, capturedImg) => {
                   setLivenessPassed(passed);
                   setLivenessImage(capturedImg);
-                  // Also use liveness image as selfie for face matching
                   setSelfiePreview(capturedImg);
                   setSelfieFile(new File([], 'liveness-capture.jpg'));
                   addAuditEntry('Liveness check', 'liveness', passed ? 'All challenges passed' : 'Failed');
@@ -560,16 +555,9 @@ const Verification = () => {
                 />
               )}
 
-              {/* Optional manual selfie fallback */}
+              {/* Selfie status */}
               {!livenessPassed && (
-                <div className="rounded-lg border-2 border-dashed border-border p-4 text-center hover:border-primary/50 transition-colors opacity-50">
-                  <input
-                    ref={selfieFileRef}
-                    type="file"
-                    accept="image/*"
-                    className="hidden"
-                    disabled
-                  />
+                <div className="rounded-lg border-2 border-dashed border-border p-4 text-center opacity-50">
                   <Camera className="h-10 w-10 text-muted-foreground mx-auto mb-2" />
                   <p className="font-medium text-sm text-foreground">Selfie Photo</p>
                   <p className="text-xs text-muted-foreground mt-1">Complete liveness check above — selfie is captured automatically</p>
@@ -603,7 +591,7 @@ const Verification = () => {
             <ShieldCheck className="h-16 w-16 text-verified mx-auto mb-4" />
             <h2 className="text-2xl font-bold text-foreground">🎉 Fully Verified Account!</h2>
             <p className="text-muted-foreground mt-2">
-              Both PhilSys and Biometric verifications have been approved.
+              Both PhilID QR and Biometric verifications have been approved.
               You now have access to all marketplace features including COD payments.
             </p>
           </CardContent>
