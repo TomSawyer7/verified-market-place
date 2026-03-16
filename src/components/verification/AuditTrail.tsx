@@ -6,7 +6,7 @@ export interface AuditEntry {
   id: string;
   timestamp: string;
   action: string;
-  type: 'info' | 'upload' | 'security' | 'approval' | 'rejection' | 'liveness';
+  type: 'info' | 'upload' | 'security' | 'approval' | 'rejection' | 'liveness' | 'error';
   details?: string;
 }
 
