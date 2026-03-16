@@ -21,6 +21,7 @@ const iconMap = {
   approval: <CheckCircle className="h-3 w-3 text-verified" />,
   rejection: <XCircle className="h-3 w-3 text-destructive" />,
   liveness: <Camera className="h-3 w-3 text-primary" />,
+  error: <XCircle className="h-3 w-3 text-destructive" />,
 };
 
 const AuditTrail = ({ entries }: AuditTrailProps) => {
