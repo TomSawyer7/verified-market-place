@@ -91,6 +91,7 @@ const LivenessCheck = ({ onComplete, disabled }: LivenessCheckProps) => {
         videoRef.current.srcObject = stream;
         await videoRef.current.play();
       }
+      cameraActiveRef.current = true;
       setCameraActive(true);
       setCurrentChallenge(0);
       setChallengesPassed([false, false, false, false]);
