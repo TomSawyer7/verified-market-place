@@ -133,6 +133,7 @@ const decodePhilIDQR = (rawData: string): PhilIDData | null => {
 
 const PhilIDQRScanner = ({ onScanComplete, onError, disabled }: PhilIDQRScannerProps) => {
   const [scanning, setScanning] = useState(false);
+  const [scannerVisible, setScannerVisible] = useState(false);
   const [scannedData, setScannedData] = useState<PhilIDData | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
