@@ -123,6 +123,7 @@ const LivenessCheck = ({ onComplete, disabled }: LivenessCheckProps) => {
       streamRef.current.getTracks().forEach(t => t.stop());
       streamRef.current = null;
     }
+    cameraActiveRef.current = false;
     setCameraActive(false);
   };
 
