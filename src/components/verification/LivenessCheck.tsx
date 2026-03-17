@@ -33,6 +33,7 @@ const LivenessCheck = ({ onComplete, disabled }: LivenessCheckProps) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const intervalRef = useRef<number | null>(null);
+  const cameraActiveRef = useRef(false);
   const [challenges] = useState(selectChallenges);
 
   const [modelsLoaded, setModelsLoaded] = useState(false);
