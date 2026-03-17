@@ -262,7 +262,7 @@ const PhilIDQRScanner = ({ onScanComplete, onError, disabled }: PhilIDQRScannerP
 
         {/* Scanner viewport */}
         <div className="relative rounded-lg overflow-hidden bg-muted aspect-square max-w-[320px] mx-auto">
-          <div id={scannerDivId} className={scanning ? 'block' : 'hidden'} />
+          <div id={scannerDivId} className={scannerVisible ? 'block' : 'hidden'} />
           <div id="philid-qr-file-reader" className="hidden" />
           
           {!scanning && !scannedData && !error && (
