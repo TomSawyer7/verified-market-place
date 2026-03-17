@@ -8,7 +8,7 @@ import { Progress } from '@/components/ui/progress';
 import { Input } from '@/components/ui/input';
 import {
   Upload, Camera, ShieldCheck, AlertCircle, ExternalLink,
-  CheckCircle, XCircle, Clock, FileImage, ArrowRight, Info, QrCode
+  CheckCircle, XCircle, Clock, FileImage, ArrowRight, Info, Monitor
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useNavigate } from 'react-router-dom';
