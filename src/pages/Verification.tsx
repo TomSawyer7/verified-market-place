@@ -130,27 +130,23 @@ const Verification = () => {
       toast.error(`Maximum ${MAX_DAILY_ATTEMPTS} verification attempts per day. Please try again tomorrow.`);
       return;
     }
-    if (!philIdData) {
-      toast.error('Please scan your PhilID QR code first.');
-      return;
-    }
-    if (philIdMatched === false) {
-      toast.error('PhilID data does not match your registered identity. Please check your information.');
+    if (!screenshotResult) {
+      toast.error('Please upload your eVerify screenshot first.');
       return;
     }
     incrementAttempts();
-    addAuditEntry('PhilSys QR verification submitted', 'info', `Match score: ${philIdMatchScore}%, PCRN: ${philIdData.pcrn}`);
+    addAuditEntry('PhilSys screenshot verification submitted', 'info', `Authenticity score: ${screenshotResult.score}%`);
     submitVerification({
       userId: user.id,
       userName: user.name,
       type: 'philsys',
-      philsysScreenshot: `/philid-qr-verified-${philIdData.pcrn}`,
+      philsysScreenshot: screenshotResult.imageDataUrl,
     });
     updateVerificationStatus(user.id, 'philsys_pending');
-    setPhilIdData(null);
-    setPhilIdMatched(null);
+    setScreenshotResult(null);
+    setScreenshotPassed(false);
     setNotes('');
-    toast.success('PhilSys QR verification submitted! Please wait for admin review.');
+    toast.success('PhilSys verification submitted! Please wait for admin review.');
   };
 
   const handleSubmitBiometric = () => {
