@@ -199,6 +199,7 @@ const PhilIDQRScanner = ({ onScanComplete, onError, disabled }: PhilIDQRScannerP
     }
     scannerRef.current = null;
     setScanning(false);
+    setScannerVisible(false);
   };
 
   const handleQRDecode = (rawData: string) => {
