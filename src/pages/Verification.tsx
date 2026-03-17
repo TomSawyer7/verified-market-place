@@ -90,7 +90,11 @@ const Verification = () => {
 
   const isRateLimited = dailyAttempts >= MAX_DAILY_ATTEMPTS;
 
-  if (!user) { navigate('/login'); return null; }
+  useEffect(() => {
+    if (!user) navigate('/login');
+  }, [user, navigate]);
+
+  if (!user) return null;
 
   const userPhilsysRequests = verificationRequests.filter(
     v => v.userId === user.id && v.type === 'philsys'
