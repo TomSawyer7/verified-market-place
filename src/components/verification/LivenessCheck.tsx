@@ -192,7 +192,7 @@ const LivenessCheck = ({ onComplete, disabled }: LivenessCheckProps) => {
 
   const startDetection = () => {
     intervalRef.current = window.setInterval(async () => {
-      if (!videoRef.current || !cameraActive) return;
+      if (!videoRef.current || !cameraActiveRef.current) return;
 
       // Anti-replay: check frame variance
       const hash = computeFrameHash();
