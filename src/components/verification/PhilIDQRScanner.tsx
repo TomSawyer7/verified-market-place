@@ -133,6 +133,7 @@ const decodePhilIDQR = (rawData: string): PhilIDData | null => {
 
 const PhilIDQRScanner = ({ onScanComplete, onError, disabled }: PhilIDQRScannerProps) => {
   const [scanning, setScanning] = useState(false);
+  const [scannerVisible, setScannerVisible] = useState(false);
   const [scannedData, setScannedData] = useState<PhilIDData | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -149,6 +150,11 @@ const PhilIDQRScanner = ({ onScanComplete, onError, disabled }: PhilIDQRScannerP
     setError(null);
     setScannedData(null);
     setLoading(true);
+    // Make scanner div visible BEFORE initializing (required by html5-qrcode)
+    setScannerVisible(true);
+
+    // Wait a tick for the DOM to update
+    await new Promise(resolve => setTimeout(resolve, 100));
 
     try {
       const scanner = new Html5Qrcode(scannerDivId);
@@ -193,6 +199,7 @@ const PhilIDQRScanner = ({ onScanComplete, onError, disabled }: PhilIDQRScannerP
     }
     scannerRef.current = null;
     setScanning(false);
+    setScannerVisible(false);
   };
 
   const handleQRDecode = (rawData: string) => {
@@ -255,10 +262,10 @@ const PhilIDQRScanner = ({ onScanComplete, onError, disabled }: PhilIDQRScannerP
 
         {/* Scanner viewport */}
         <div className="relative rounded-lg overflow-hidden bg-muted aspect-square max-w-[320px] mx-auto">
-          <div id={scannerDivId} className={scanning ? 'block' : 'hidden'} />
+          <div id={scannerDivId} className={scannerVisible ? 'block' : 'hidden'} />
           <div id="philid-qr-file-reader" className="hidden" />
           
-          {!scanning && !scannedData && !error && (
+          {!scannerVisible && !scannedData && !error && (
             <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 p-4">
               <QrCode className="h-16 w-16 text-muted-foreground" />
               <p className="text-sm text-muted-foreground text-center">

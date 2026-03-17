@@ -33,6 +33,7 @@ const LivenessCheck = ({ onComplete, disabled }: LivenessCheckProps) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const intervalRef = useRef<number | null>(null);
+  const cameraActiveRef = useRef(false);
   const [challenges] = useState(selectChallenges);
 
   const [modelsLoaded, setModelsLoaded] = useState(false);
@@ -90,6 +91,7 @@ const LivenessCheck = ({ onComplete, disabled }: LivenessCheckProps) => {
         videoRef.current.srcObject = stream;
         await videoRef.current.play();
       }
+      cameraActiveRef.current = true;
       setCameraActive(true);
       setCurrentChallenge(0);
       setChallengesPassed([false, false, false, false]);
@@ -121,6 +123,7 @@ const LivenessCheck = ({ onComplete, disabled }: LivenessCheckProps) => {
       streamRef.current.getTracks().forEach(t => t.stop());
       streamRef.current = null;
     }
+    cameraActiveRef.current = false;
     setCameraActive(false);
   };
 
@@ -189,7 +192,7 @@ const LivenessCheck = ({ onComplete, disabled }: LivenessCheckProps) => {
 
   const startDetection = () => {
     intervalRef.current = window.setInterval(async () => {
-      if (!videoRef.current || !cameraActive) return;
+      if (!videoRef.current || !cameraActiveRef.current) return;
 
       // Anti-replay: check frame variance
       const hash = computeFrameHash();
