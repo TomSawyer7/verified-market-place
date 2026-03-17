@@ -287,15 +287,15 @@ const Verification = () => {
               {['philsys_approved', 'biometric_pending', 'fully_verified'].includes(status) ? '✓' : '1'}
             </div>
             <div>
-              <CardTitle className="text-lg">Step 1: PhilID QR Code Verification</CardTitle>
-              <CardDescription>Scan the QR code on your PhilID to verify your identity offline</CardDescription>
+              <CardTitle className="text-lg">Step 1: PhilSys eVerify Portal Verification</CardTitle>
+              <CardDescription>Verify your identity through the official eVerify.gov.ph portal</CardDescription>
             </div>
           </div>
         </CardHeader>
         <CardContent className="space-y-4">
           {['philsys_approved', 'biometric_pending', 'fully_verified'].includes(status) && (
             <div className="flex items-center gap-2 text-verified font-medium">
-              <CheckCircle className="h-5 w-5" /> PhilID Verified — Approved by Admin
+              <CheckCircle className="h-5 w-5" /> PhilSys Verified — Approved by Admin
             </div>
           )}
 
@@ -305,7 +305,7 @@ const Verification = () => {
                 <Clock className="h-5 w-5" /> Pending Admin Review
               </div>
               <p className="text-sm text-muted-foreground">
-                Your PhilID QR data has been submitted. An admin will review your verification request.
+                Your eVerify screenshot has been submitted. An admin will review your verification request.
                 This may take 24-48 hours.
               </p>
             </div>
@@ -317,72 +317,31 @@ const Verification = () => {
                 <XCircle className="h-5 w-5" /> Verification Rejected
               </div>
               <p className="text-sm text-muted-foreground">
-                Your previous PhilID verification was rejected. Please ensure you scan the correct QR code from your PhilID card.
+                Your previous verification was rejected. Please upload a clear, unedited screenshot from eVerify.gov.ph.
               </p>
             </div>
           )}
 
           {canSubmitPhilsys && !isRateLimited && (
             <>
-              <div className="rounded-lg border border-border bg-muted/50 p-4">
-                <div className="flex items-start gap-2 mb-3">
-                  <Info className="h-5 w-5 text-primary mt-0.5 shrink-0" />
-                  <p className="font-medium text-foreground text-sm">How PhilID QR Verification works:</p>
-                </div>
-                <ol className="space-y-2 text-sm text-muted-foreground ml-7">
-                  {[
-                    'Position the QR code on the back of your PhilID card in front of your camera',
-                    'The system reads and decodes the digitally-signed data from the QR code',
-                    'Your identity is verified by matching QR data with your registered account',
-                    'The digital signature from PSA is validated to ensure the PhilID is authentic',
-                  ].map((text, i) => (
-                    <li key={i} className="flex items-start gap-2">
-                      <span className="bg-primary text-primary-foreground rounded-full h-5 w-5 flex items-center justify-center text-[10px] font-bold shrink-0 mt-0.5">{i + 1}</span>
-                      {text}
-                    </li>
-                  ))}
-                </ol>
-              </div>
-
-              {/* QR Scanner */}
-              <PhilIDQRScanner
+              {/* Screenshot Verifier */}
+              <PhilSysScreenshotVerifier
+                registeredName={user.name}
                 disabled={isRateLimited}
-                onScanComplete={(data) => {
-                  setPhilIdData(data);
-                  addAuditEntry('PhilID QR scanned', 'security', `PCRN: ${data.pcrn}, Name: ${data.lastName}, ${data.firstName}`);
-                  if (data.signatureValid) {
-                    addAuditEntry('Digital signature verified', 'security', 'PSA signature valid');
-                  } else {
-                    addAuditEntry('Digital signature INVALID', 'error', 'Possible forged PhilID');
-                  }
+                onVerificationComplete={(result) => {
+                  setScreenshotResult(result);
+                  setScreenshotPassed(result.passed);
+                  addAuditEntry('eVerify screenshot analyzed', 'security', `Score: ${result.score}% — ${result.passed ? 'Passed' : 'Flagged'}`);
+                  result.checks.forEach(check => {
+                    if (!check.passed) {
+                      addAuditEntry(`Check failed: ${check.name}`, 'error', check.detail);
+                    }
+                  });
                 }}
                 onError={(err) => {
-                  addAuditEntry('QR scan failed', 'error', err);
+                  addAuditEntry('Screenshot analysis failed', 'error', err);
                 }}
               />
-
-              {/* Data Match */}
-              {philIdData && (
-                <PhilIDDataMatch
-                  philIdData={philIdData}
-                  registeredName={user.name}
-                  onMatchResult={(matched, score) => {
-                    setPhilIdMatched(matched);
-                    setPhilIdMatchScore(score);
-                    addAuditEntry('Identity data match', 'security', `Score: ${score}% — ${matched ? 'Match' : 'Mismatch'}`);
-                  }}
-                />
-              )}
-
-              {/* Face match from QR photo vs selfie (if QR has embedded photo) */}
-              {philIdData?.photo && (
-                <div className="rounded-lg border border-border bg-muted/30 p-3">
-                  <p className="text-xs text-muted-foreground">
-                    <Info className="h-3.5 w-3.5 inline mr-1" />
-                    Photo extracted from PhilID QR will be used for face matching in Step 2.
-                  </p>
-                </div>
-              )}
 
               <div>
                 <label className="text-sm font-medium text-foreground mb-1.5 block">Additional Notes (optional)</label>
@@ -396,10 +355,10 @@ const Verification = () => {
               <Button
                 className="w-full h-11"
                 onClick={handleSubmitPhilsys}
-                disabled={!philIdData || philIdMatched === false}
+                disabled={!screenshotResult}
               >
                 <Upload className="h-4 w-4 mr-2" />
-                Submit PhilID Verification for Admin Review
+                Submit PhilSys Verification for Admin Review
               </Button>
             </>
           )}
