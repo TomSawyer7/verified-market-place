@@ -265,7 +265,7 @@ const PhilIDQRScanner = ({ onScanComplete, onError, disabled }: PhilIDQRScannerP
           <div id={scannerDivId} className={scannerVisible ? 'block' : 'hidden'} />
           <div id="philid-qr-file-reader" className="hidden" />
           
-          {!scanning && !scannedData && !error && (
+          {!scannerVisible && !scannedData && !error && (
             <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 p-4">
               <QrCode className="h-16 w-16 text-muted-foreground" />
               <p className="text-sm text-muted-foreground text-center">
