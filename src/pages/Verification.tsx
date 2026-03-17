@@ -52,10 +52,9 @@ const Verification = () => {
   const [selfiePreview, setSelfiePreview] = useState<string | null>(null);
   const [notes, setNotes] = useState('');
 
-  // PhilID QR state
-  const [philIdData, setPhilIdData] = useState<PhilIDData | null>(null);
-  const [philIdMatched, setPhilIdMatched] = useState<boolean | null>(null);
-  const [philIdMatchScore, setPhilIdMatchScore] = useState(0);
+  // PhilSys screenshot state
+  const [screenshotResult, setScreenshotResult] = useState<ScreenshotVerificationResult | null>(null);
+  const [screenshotPassed, setScreenshotPassed] = useState(false);
 
   // Security state
   const [livenessPassed, setLivenessPassed] = useState(false);
