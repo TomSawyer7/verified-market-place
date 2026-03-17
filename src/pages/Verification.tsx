@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useMarketplace } from '@/contexts/MarketplaceContext';
 import { TrustScoreBadge, VerificationBadge } from '@/components/TrustBadge';
