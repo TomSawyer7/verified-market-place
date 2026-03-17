@@ -150,6 +150,11 @@ const PhilIDQRScanner = ({ onScanComplete, onError, disabled }: PhilIDQRScannerP
     setError(null);
     setScannedData(null);
     setLoading(true);
+    // Make scanner div visible BEFORE initializing (required by html5-qrcode)
+    setScannerVisible(true);
+
+    // Wait a tick for the DOM to update
+    await new Promise(resolve => setTimeout(resolve, 100));
 
     try {
       const scanner = new Html5Qrcode(scannerDivId);
