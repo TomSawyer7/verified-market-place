@@ -18,8 +18,7 @@ import AntiSpoofingCheck from '@/components/verification/AntiSpoofingCheck';
 import DocumentExpiryCheck from '@/components/verification/DocumentExpiryCheck';
 import AuditTrail, { AuditEntry } from '@/components/verification/AuditTrail';
 import SecurityBadges from '@/components/verification/SecurityBadges';
-import PhilIDQRScanner, { PhilIDData } from '@/components/verification/PhilIDQRScanner';
-import PhilIDDataMatch from '@/components/verification/PhilIDDataMatch';
+import PhilSysScreenshotVerifier, { ScreenshotVerificationResult } from '@/components/verification/PhilSysScreenshotVerifier';
 
 const MAX_DAILY_ATTEMPTS = 3;
 
