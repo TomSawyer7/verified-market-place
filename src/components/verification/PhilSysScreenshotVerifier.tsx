@@ -1,10 +1,9 @@
 import { useState, useRef, useCallback } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Progress } from '@/components/ui/progress';
 import {
   Upload, CheckCircle, XCircle, Loader2, ShieldCheck, AlertTriangle,
-  ExternalLink, Clock, FileImage, Image, Monitor, Info
+  ExternalLink, Clock, FileImage, Monitor, Info
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -53,7 +52,7 @@ const analyzeScreenshotAuthenticity = async (
   const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
   const pixels = imageData.data;
 
-  // === CHECK 1: Resolution (screenshots should be decent resolution) ===
+  // === CHECK 1: Resolution ===
   const isHighRes = img.width >= 600 && img.height >= 400;
   checks.push({
     name: 'Resolution Check',
@@ -64,7 +63,7 @@ const analyzeScreenshotAuthenticity = async (
     weight: 10,
   });
 
-  // === CHECK 2: Aspect Ratio (typical screenshots are landscape or near-standard ratios) ===
+  // === CHECK 2: Aspect Ratio ===
   const ratio = img.width / img.height;
   const isValidRatio = ratio >= 0.5 && ratio <= 3.0;
   checks.push({
@@ -76,7 +75,7 @@ const analyzeScreenshotAuthenticity = async (
     weight: 5,
   });
 
-  // === CHECK 3: Color Consistency (edited images often have sharp color boundaries) ===
+  // === CHECK 3: Color Consistency ===
   let sharpEdges = 0;
   let totalSampled = 0;
   const step = 4;
@@ -102,7 +101,7 @@ const analyzeScreenshotAuthenticity = async (
     weight: 15,
   });
 
-  // === CHECK 4: Uniform Region Analysis (edited screenshots may have clone-stamped areas) ===
+  // === CHECK 4: Uniform Region Analysis ===
   let uniformBlocks = 0;
   let totalBlocks = 0;
   const blockSize = 16;
@@ -123,7 +122,6 @@ const analyzeScreenshotAuthenticity = async (
     }
   }
   const uniformRatio = uniformBlocks / totalBlocks;
-  // Too many uniform blocks = possibly edited/filled areas, but some is normal for UI screenshots
   const uniformOk = uniformRatio < 0.5;
   checks.push({
     name: 'Clone Detection',
@@ -134,11 +132,10 @@ const analyzeScreenshotAuthenticity = async (
     weight: 15,
   });
 
-  // === CHECK 5: JPEG Artifact Analysis (re-saved/edited images often have double compression) ===
+  // === CHECK 5: JPEG Artifact Analysis ===
   const isJpeg = dataUrl.includes('data:image/jpeg') || dataUrl.includes('data:image/jpg');
   let compressionOk = true;
   if (isJpeg) {
-    // Check for blockiness at 8x8 boundaries (JPEG compression artifacts)
     let boundaryDiffs = 0;
     let innerDiffs = 0;
     let bSamples = 0;
@@ -154,7 +151,6 @@ const analyzeScreenshotAuthenticity = async (
     }
     const avgBoundary = boundaryDiffs / Math.max(bSamples, 1);
     const avgInner = innerDiffs / Math.max(iSamples, 1);
-    // Double-compressed JPEGs show more pronounced 8x8 block boundaries
     compressionOk = avgBoundary < avgInner * 2.5;
   }
   checks.push({
@@ -166,8 +162,7 @@ const analyzeScreenshotAuthenticity = async (
     weight: 10,
   });
 
-  // === CHECK 6: Timestamp/Freshness via EXIF-like heuristic ===
-  // We can't read real EXIF in browser easily, so check file size heuristic
+  // === CHECK 6: File Integrity ===
   const base64Length = dataUrl.split(',')[1]?.length || 0;
   const estimatedBytes = base64Length * 0.75;
   const bytesPerPixel = estimatedBytes / (img.width * img.height);
@@ -181,7 +176,7 @@ const analyzeScreenshotAuthenticity = async (
     weight: 10,
   });
 
-  // === CHECK 7: Green/UI Color Presence (eVerify portal has specific UI elements) ===
+  // === CHECK 7: Portal UI Detection ===
   let greenPixels = 0;
   let bluePixels = 0;
   let whitePixels = 0;
@@ -202,7 +197,7 @@ const analyzeScreenshotAuthenticity = async (
     weight: 15,
   });
 
-  // === CHECK 8: Text-like pattern detection (screenshots should contain text regions) ===
+  // === CHECK 8: Text Content Detection ===
   let textLikeRegions = 0;
   for (let y = 0; y < canvas.height - 1; y += 2) {
     for (let x = 0; x < canvas.width - 1; x += 2) {
@@ -282,9 +277,9 @@ const PhilSysScreenshotVerifier = ({
       setResult(res);
       onVerificationComplete(res);
       if (res.passed) {
-        toast.success(`Screenshot verification passed with ${res.score}% confidence!`);
+        toast.success('Screenshot verification passed!');
       } else {
-        toast.warning(`Screenshot flagged — ${res.score}% confidence. Admin will review.`);
+        toast.warning('Screenshot flagged — admin will review your submission.');
       }
     } catch {
       const msg = 'Failed to analyze screenshot. Please try again.';
@@ -322,7 +317,7 @@ const PhilSysScreenshotVerifier = ({
               'Enter your PhilSys Card Number (PCN) and other details',
               'After successful verification, take a FULL screenshot of the result page',
               'The screenshot must show the green "Verified" status with your name and details',
-              'Upload the screenshot below — our system will check for tampering',
+              'Upload the screenshot below for review',
             ].map((text, i) => (
               <li key={i} className="flex items-start gap-2">
                 <span className="bg-primary text-primary-foreground rounded-full h-4 w-4 flex items-center justify-center text-[9px] font-bold shrink-0 mt-0.5">
@@ -378,8 +373,7 @@ const PhilSysScreenshotVerifier = ({
               {analyzing && (
                 <div className="absolute inset-0 bg-background/70 flex flex-col items-center justify-center gap-2">
                   <Loader2 className="h-8 w-8 animate-spin text-primary" />
-                  <p className="text-sm font-medium text-foreground">Analyzing screenshot authenticity...</p>
-                  <p className="text-xs text-muted-foreground">Checking for tampering, editing, and consistency</p>
+                  <p className="text-sm font-medium text-foreground">Verifying screenshot...</p>
                 </div>
               )}
             </div>
@@ -387,66 +381,31 @@ const PhilSysScreenshotVerifier = ({
           </div>
         )}
 
-        {/* Results */}
+        {/* Results — simplified for users */}
         {result && (
           <div className="space-y-3">
-            {/* Overall score */}
             <div className={`rounded-lg border p-3 ${
               result.passed
                 ? 'border-verified/30 bg-verified/5'
                 : 'border-pending/30 bg-pending/5'
             }`}>
-              <div className="flex items-center justify-between mb-2">
-                <div className="flex items-center gap-2 text-sm font-semibold">
-                  {result.passed ? (
-                    <><ShieldCheck className="h-4 w-4 text-verified" /> Screenshot Verified</>
-                  ) : (
-                    <><AlertTriangle className="h-4 w-4 text-pending" /> Flagged for Review</>
-                  )}
-                </div>
-                <span className={`text-sm font-bold ${result.passed ? 'text-verified' : 'text-pending'}`}>
-                  {result.score}%
-                </span>
+              <div className="flex items-center gap-2 text-sm font-semibold">
+                {result.passed ? (
+                  <><ShieldCheck className="h-4 w-4 text-verified" /> Screenshot Accepted</>
+                ) : (
+                  <><AlertTriangle className="h-4 w-4 text-pending" /> Screenshot Needs Review</>
+                )}
               </div>
-              <Progress
-                value={result.score}
-                className={`h-2 ${result.passed ? '[&>div]:bg-verified' : '[&>div]:bg-pending'}`}
-              />
-            </div>
-
-            {/* Individual checks */}
-            <div className="rounded-lg border border-border bg-muted/30 p-3 space-y-2">
-              <p className="text-xs font-semibold text-foreground uppercase tracking-wide mb-1">
-                Authenticity Checks
+              <p className="text-xs text-muted-foreground mt-1">
+                {result.passed
+                  ? 'Your screenshot has been verified. You can now submit for admin approval.'
+                  : 'Your screenshot has been flagged for additional review. You can still submit it — an admin will manually verify.'}
               </p>
-              {result.checks.map((check, i) => (
-                <div key={i} className="flex items-start gap-2 text-xs">
-                  {check.passed ? (
-                    <CheckCircle className="h-3.5 w-3.5 text-verified shrink-0 mt-0.5" />
-                  ) : (
-                    <XCircle className="h-3.5 w-3.5 text-destructive shrink-0 mt-0.5" />
-                  )}
-                  <div>
-                    <span className="font-medium text-foreground">{check.name}</span>
-                    <p className="text-muted-foreground">{check.detail}</p>
-                  </div>
-                </div>
-              ))}
             </div>
 
-            {!result.passed && (
-              <div className="rounded-lg border border-pending/30 bg-pending/5 p-3">
-                <p className="text-xs text-pending">
-                  <AlertTriangle className="h-3 w-3 inline mr-1" />
-                  Screenshot flagged but submission is still allowed. An admin will manually review the authenticity of your screenshot.
-                </p>
-              </div>
-            )}
-
-            {/* Timestamp */}
             <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
               <Clock className="h-3 w-3" />
-              Analyzed at {new Date(result.timestamp).toLocaleString()}
+              Verified at {new Date(result.timestamp).toLocaleString()}
             </div>
 
             <Button variant="outline" size="sm" onClick={reset}>

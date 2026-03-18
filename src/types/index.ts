@@ -40,6 +40,26 @@ export interface Transaction {
   createdAt: string;
 }
 
+export interface SecurityCheck {
+  name: string;
+  passed: boolean;
+  detail: string;
+  weight: number;
+}
+
+export interface SecurityAnalysis {
+  screenshotScore?: number;
+  screenshotChecks?: SecurityCheck[];
+  faceMatchScore?: number;
+  faceMatched?: boolean;
+  livenessPassed?: boolean;
+  antiSpoofPassed?: boolean;
+  antiSpoofReasons?: string[];
+  documentExpiry?: string;
+  documentValid?: boolean;
+  auditEntries?: { action: string; type: string; details?: string; timestamp: string }[];
+}
+
 export interface VerificationRequest {
   id: string;
   userId: string;
@@ -51,6 +71,7 @@ export interface VerificationRequest {
   philsysScreenshot?: string;
   idPhoto?: string;
   selfiePhoto?: string;
+  securityAnalysis?: SecurityAnalysis;
 }
 
 export interface Report {
