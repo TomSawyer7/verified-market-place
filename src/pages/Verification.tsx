@@ -16,9 +16,8 @@ import LivenessCheck from '@/components/verification/LivenessCheck';
 import FaceMatchIndicator from '@/components/verification/FaceMatchIndicator';
 import AntiSpoofingCheck from '@/components/verification/AntiSpoofingCheck';
 import DocumentExpiryCheck from '@/components/verification/DocumentExpiryCheck';
-import AuditTrail, { AuditEntry } from '@/components/verification/AuditTrail';
-import SecurityBadges from '@/components/verification/SecurityBadges';
 import PhilSysScreenshotVerifier, { ScreenshotVerificationResult } from '@/components/verification/PhilSysScreenshotVerifier';
+import { SecurityAnalysis } from '@/types';
 
 const MAX_DAILY_ATTEMPTS = 3;
 
@@ -56,31 +55,21 @@ const Verification = () => {
   const [screenshotResult, setScreenshotResult] = useState<ScreenshotVerificationResult | null>(null);
   const [screenshotPassed, setScreenshotPassed] = useState(false);
 
-  // Security state
+  // Security state (hidden from user, stored for admin)
   const [livenessPassed, setLivenessPassed] = useState(false);
   const [livenessImage, setLivenessImage] = useState<string | null>(null);
   const [faceMatched, setFaceMatched] = useState<boolean | null>(null);
   const [faceMatchScore, setFaceMatchScore] = useState(0);
   const [idSpoofPassed, setIdSpoofPassed] = useState<boolean | null>(null);
+  const [idSpoofReasons, setIdSpoofReasons] = useState<string[]>([]);
   const [documentValid, setDocumentValid] = useState(false);
   const [documentExpiry, setDocumentExpiry] = useState('');
-  const [auditLog, setAuditLog] = useState<AuditEntry[]>([]);
 
   // Rate limiting
   const [dailyAttempts] = useState(() => {
     const key = `verification_attempts_${new Date().toDateString()}`;
     return parseInt(localStorage.getItem(key) || '0', 10);
   });
-
-  const addAuditEntry = useCallback((action: string, type: AuditEntry['type'], details?: string) => {
-    setAuditLog(prev => [...prev, {
-      id: `audit-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-      timestamp: new Date().toISOString(),
-      action,
-      type,
-      details,
-    }]);
-  }, []);
 
   const incrementAttempts = () => {
     const key = `verification_attempts_${new Date().toDateString()}`;
@@ -126,7 +115,6 @@ const Verification = () => {
     const reader = new FileReader();
     reader.onload = (e) => setPreview(e.target?.result as string);
     reader.readAsDataURL(file);
-    addAuditEntry(`Uploaded ${label}`, 'upload', `${file.name} (${(file.size / 1024).toFixed(1)}KB)`);
   };
 
   const handleSubmitPhilsys = () => {
@@ -139,12 +127,18 @@ const Verification = () => {
       return;
     }
     incrementAttempts();
-    addAuditEntry('PhilSys screenshot verification submitted', 'info', `Authenticity score: ${screenshotResult.score}%`);
+
+    const securityAnalysis: SecurityAnalysis = {
+      screenshotScore: screenshotResult.score,
+      screenshotChecks: screenshotResult.checks,
+    };
+
     submitVerification({
       userId: user.id,
       userName: user.name,
       type: 'philsys',
       philsysScreenshot: screenshotResult.imageDataUrl,
+      securityAnalysis,
     });
     updateVerificationStatus(user.id, 'philsys_pending');
     setScreenshotResult(null);
@@ -175,13 +169,24 @@ const Verification = () => {
       return;
     }
     incrementAttempts();
-    addAuditEntry('Biometric verification submitted', 'info', `Face match: ${faceMatchScore}%, Liveness: passed`);
+
+    const securityAnalysis: SecurityAnalysis = {
+      faceMatchScore,
+      faceMatched: faceMatched ?? false,
+      livenessPassed,
+      antiSpoofPassed: idSpoofPassed ?? false,
+      antiSpoofReasons: idSpoofReasons,
+      documentExpiry,
+      documentValid,
+    };
+
     submitVerification({
       userId: user.id,
       userName: user.name,
       type: 'biometric',
       idPhoto: idPreview || '/placeholder.svg',
       selfiePhoto: livenessImage || selfiePreview || '/placeholder.svg',
+      securityAnalysis,
     });
     updateVerificationStatus(user.id, 'biometric_pending');
     setIdFile(null);
@@ -214,7 +219,7 @@ const Verification = () => {
     10;
 
   const stepLabels = [
-    'Scan QR', 'Verify Data', 'Admin Review',
+    'Upload', 'Verify', 'Admin Review',
     'Biometric', 'Liveness + Face', 'Verified'
   ];
 
@@ -233,11 +238,6 @@ const Verification = () => {
           <TrustScoreBadge score={user.trustScore} />
           <VerificationBadge status={user.verificationStatus} />
         </div>
-      </div>
-
-      {/* Security Badges */}
-      <div className="mb-6 animate-fade-in">
-        <SecurityBadges />
       </div>
 
       {/* Rate Limit Warning */}
@@ -274,7 +274,7 @@ const Verification = () => {
         </CardContent>
       </Card>
 
-      {/* === STEP 1: PhilID QR Verification === */}
+      {/* === STEP 1: PhilSys Verification === */}
       <Card className={`mb-6 animate-fade-in transition-all ${
         ['philsys_approved', 'biometric_pending', 'fully_verified'].includes(status)
           ? 'border-verified/50 bg-verified/5' : ''
@@ -328,23 +328,14 @@ const Verification = () => {
 
           {canSubmitPhilsys && !isRateLimited && (
             <>
-              {/* Screenshot Verifier */}
               <PhilSysScreenshotVerifier
                 registeredName={user.name}
                 disabled={isRateLimited}
                 onVerificationComplete={(result) => {
                   setScreenshotResult(result);
                   setScreenshotPassed(result.passed);
-                  addAuditEntry('eVerify screenshot analyzed', 'security', `Score: ${result.score}% — ${result.passed ? 'Passed' : 'Flagged'}`);
-                  result.checks.forEach(check => {
-                    if (!check.passed) {
-                      addAuditEntry(`Check failed: ${check.name}`, 'error', check.detail);
-                    }
-                  });
                 }}
-                onError={(err) => {
-                  addAuditEntry('Screenshot analysis failed', 'error', err);
-                }}
+                onError={() => {}}
               />
 
               <div>
@@ -425,7 +416,7 @@ const Verification = () => {
           {!canSubmitBiometric && status !== 'biometric_pending' && status !== 'fully_verified' && (
             <div className="flex items-center gap-2 text-muted-foreground">
               <AlertCircle className="h-5 w-5" />
-              <p className="text-sm">Complete PhilID QR verification first to unlock this step.</p>
+              <p className="text-sm">Complete PhilSys verification first to unlock this step.</p>
             </div>
           )}
 
@@ -439,8 +430,8 @@ const Verification = () => {
                     <ul className="list-disc ml-4 space-y-1">
                       <li>Upload a clear photo of your valid government-issued ID</li>
                       <li>Confirm your document is not expired</li>
-                      <li>Complete a live camera liveness check (blink, smile, head turn)</li>
-                      <li>AI face matching between your ID and live selfie</li>
+                      <li>Complete a live camera liveness check</li>
+                      <li>Face matching between your ID and live selfie</li>
                     </ul>
                   </div>
                 </div>
@@ -450,7 +441,6 @@ const Verification = () => {
               <DocumentExpiryCheck onValidityChange={(valid, date) => {
                 setDocumentValid(valid);
                 setDocumentExpiry(date);
-                if (valid) addAuditEntry('Document expiry confirmed', 'security', `Expires: ${date}`);
               }} />
 
               {/* ID Photo Upload */}
@@ -477,13 +467,13 @@ const Verification = () => {
                 )}
               </div>
 
-              {/* Anti-spoofing on ID */}
+              {/* Anti-spoofing on ID — shows only pass/fail to user */}
               <AntiSpoofingCheck
                 imageDataUrl={idPreview}
                 label="ID Photo"
-                onResult={(passed) => {
+                onResult={(passed, reasons) => {
                   setIdSpoofPassed(passed);
-                  addAuditEntry('ID anti-spoofing check', 'security', passed ? 'Passed' : 'Flagged');
+                  setIdSpoofReasons(reasons || []);
                 }}
               />
 
@@ -495,11 +485,10 @@ const Verification = () => {
                   setLivenessImage(capturedImg);
                   setSelfiePreview(capturedImg);
                   setSelfieFile(new File([], 'liveness-capture.jpg'));
-                  addAuditEntry('Liveness check', 'liveness', passed ? 'All challenges passed' : 'Failed');
                 }}
               />
 
-              {/* Face Match between ID and liveness selfie */}
+              {/* Face Match — shows only pass/fail to user */}
               {idPreview && livenessImage && (
                 <FaceMatchIndicator
                   idPhoto={idPreview}
@@ -507,7 +496,6 @@ const Verification = () => {
                   onMatchResult={(matched, score) => {
                     setFaceMatched(matched);
                     setFaceMatchScore(score);
-                    addAuditEntry('Face matching', 'security', `Score: ${score}% — ${matched ? 'Match' : 'No match'}`);
                   }}
                 />
               )}
@@ -534,13 +522,6 @@ const Verification = () => {
         </CardContent>
       </Card>
 
-      {/* Audit Trail */}
-      {auditLog.length > 0 && (
-        <div className="mb-6 animate-fade-in">
-          <AuditTrail entries={auditLog} />
-        </div>
-      )}
-
       {/* Fully Verified Banner */}
       {status === 'fully_verified' && (
         <Card className="border-verified/50 bg-verified/5 animate-fade-in">
@@ -548,7 +529,7 @@ const Verification = () => {
             <ShieldCheck className="h-16 w-16 text-verified mx-auto mb-4" />
             <h2 className="text-2xl font-bold text-foreground">🎉 Fully Verified Account!</h2>
             <p className="text-muted-foreground mt-2">
-              Both PhilID QR and Biometric verifications have been approved.
+              Both PhilSys and Biometric verifications have been approved.
               You now have access to all marketplace features including COD payments.
             </p>
           </CardContent>
