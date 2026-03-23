@@ -4,13 +4,12 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider } from "@/contexts/AuthContext";
-import { MarketplaceProvider } from "@/contexts/MarketplaceContext";
 import { Navbar } from "@/components/Navbar";
 import Index from "./pages/Index";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
 import Marketplace from "./pages/Marketplace";
-import ListingDetail from "./pages/ListingDetail";
+import ProductDetail from "./pages/ProductDetail";
 import CreateListing from "./pages/CreateListing";
 import Verification from "./pages/Verification";
 import Profile from "./pages/Profile";
@@ -25,23 +24,21 @@ const App = () => (
       <Toaster />
       <Sonner />
       <AuthProvider>
-        <MarketplaceProvider>
-          <BrowserRouter>
-            <Navbar />
-            <Routes>
-              <Route path="/" element={<Index />} />
-              <Route path="/login" element={<Login />} />
-              <Route path="/register" element={<Register />} />
-              <Route path="/marketplace" element={<Marketplace />} />
-              <Route path="/listing/:id" element={<ListingDetail />} />
-              <Route path="/create-listing" element={<CreateListing />} />
-              <Route path="/verification" element={<Verification />} />
-              <Route path="/profile" element={<Profile />} />
-              <Route path="/admin" element={<AdminDashboard />} />
-              <Route path="*" element={<NotFound />} />
-            </Routes>
-          </BrowserRouter>
-        </MarketplaceProvider>
+        <BrowserRouter>
+          <Navbar />
+          <Routes>
+            <Route path="/" element={<Index />} />
+            <Route path="/login" element={<Login />} />
+            <Route path="/register" element={<Register />} />
+            <Route path="/marketplace" element={<Marketplace />} />
+            <Route path="/product/:id" element={<ProductDetail />} />
+            <Route path="/create-listing" element={<CreateListing />} />
+            <Route path="/verification" element={<Verification />} />
+            <Route path="/profile" element={<Profile />} />
+            <Route path="/admin" element={<AdminDashboard />} />
+            <Route path="*" element={<NotFound />} />
+          </Routes>
+        </BrowserRouter>
       </AuthProvider>
     </TooltipProvider>
   </QueryClientProvider>
