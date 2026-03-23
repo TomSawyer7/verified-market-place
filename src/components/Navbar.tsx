@@ -1,35 +1,46 @@
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
-import { TrustScoreBadge, VerificationBadge } from '@/components/TrustBadge';
 import { Button } from '@/components/ui/button';
-import { ShoppingBag, Shield, LogOut, LayoutDashboard, User, Plus } from 'lucide-react';
+import { Shield, LogOut, LayoutDashboard, User, Plus, Store, ShieldCheck } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
 
 export const Navbar = () => {
-  const { user, isAuthenticated, isAdmin, logout } = useAuth();
+  const { isAuthenticated, isAdmin, isVerified, profile, signOut } = useAuth();
   const location = useLocation();
+  const navigate = useNavigate();
+
+  const handleSignOut = async () => {
+    await signOut();
+    navigate('/');
+  };
 
   return (
-    <header className="sticky top-0 z-50 border-b bg-card/80 backdrop-blur-md">
+    <header className="sticky top-0 z-50 border-b glass">
       <div className="container flex h-16 items-center justify-between">
-        <Link to="/" className="flex items-center gap-2 font-bold text-xl">
-          <ShoppingBag className="h-6 w-6 text-primary" />
-          <span className="text-foreground">TrustMart</span>
-          <span className="text-primary">.ph</span>
+        <Link to="/" className="flex items-center gap-2">
+          <div className="h-9 w-9 rounded-lg gradient-primary flex items-center justify-center">
+            <ShieldCheck className="h-5 w-5 text-primary-foreground" />
+          </div>
+          <span className="font-bold text-lg tracking-tight">
+            TrustMart<span className="text-primary">.ph</span>
+          </span>
         </Link>
 
-        <nav className="flex items-center gap-3">
+        <nav className="flex items-center gap-2">
           {isAuthenticated ? (
             <>
               <Link to="/marketplace">
                 <Button variant={location.pathname === '/marketplace' ? 'default' : 'ghost'} size="sm">
-                  <ShoppingBag className="h-4 w-4 mr-1" /> Browse
+                  <Store className="h-4 w-4 mr-1" /> Marketplace
                 </Button>
               </Link>
-              <Link to="/create-listing">
-                <Button variant={location.pathname === '/create-listing' ? 'default' : 'ghost'} size="sm">
-                  <Plus className="h-4 w-4 mr-1" /> Sell
-                </Button>
-              </Link>
+              {isVerified && (
+                <Link to="/create-listing">
+                  <Button variant={location.pathname === '/create-listing' ? 'default' : 'ghost'} size="sm">
+                    <Plus className="h-4 w-4 mr-1" /> Sell
+                  </Button>
+                </Link>
+              )}
               <Link to="/verification">
                 <Button variant={location.pathname === '/verification' ? 'default' : 'ghost'} size="sm">
                   <Shield className="h-4 w-4 mr-1" /> Verify
@@ -37,20 +48,21 @@ export const Navbar = () => {
               </Link>
               {isAdmin && (
                 <Link to="/admin">
-                  <Button variant={location.pathname.startsWith('/admin') ? 'default' : 'ghost'} size="sm">
+                  <Button variant={location.pathname === '/admin' ? 'default' : 'ghost'} size="sm">
                     <LayoutDashboard className="h-4 w-4 mr-1" /> Admin
                   </Button>
                 </Link>
               )}
               <div className="flex items-center gap-2 ml-2 pl-2 border-l">
-                <TrustScoreBadge score={user!.trustScore} size="sm" />
-                <VerificationBadge status={user!.verificationStatus} size="sm" />
+                <Badge variant={isVerified ? 'default' : 'secondary'} className="text-xs">
+                  {isVerified ? 'Verified' : profile?.status === 'pending' ? 'Pending' : 'Unverified'}
+                </Badge>
                 <Link to="/profile">
-                  <Button variant="ghost" size="sm">
+                  <Button variant="ghost" size="icon" className="h-8 w-8">
                     <User className="h-4 w-4" />
                   </Button>
                 </Link>
-                <Button variant="ghost" size="sm" onClick={logout}>
+                <Button variant="ghost" size="icon" className="h-8 w-8" onClick={handleSignOut}>
                   <LogOut className="h-4 w-4" />
                 </Button>
               </div>
