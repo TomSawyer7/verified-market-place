@@ -14,16 +14,247 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      admin_logs: {
+        Row: {
+          action: string
+          admin_id: string
+          created_at: string
+          id: string
+          reason: string | null
+          user_id: string | null
+        }
+        Insert: {
+          action: string
+          admin_id: string
+          created_at?: string
+          id?: string
+          reason?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          action?: string
+          admin_id?: string
+          created_at?: string
+          id?: string
+          reason?: string | null
+          user_id?: string | null
+        }
+        Relationships: []
+      }
+      audit_trail: {
+        Row: {
+          action: string
+          created_at: string
+          details: string | null
+          event_type: string
+          id: string
+          user_id: string
+        }
+        Insert: {
+          action: string
+          created_at?: string
+          details?: string | null
+          event_type: string
+          id?: string
+          user_id: string
+        }
+        Update: {
+          action?: string
+          created_at?: string
+          details?: string | null
+          event_type?: string
+          id?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      products: {
+        Row: {
+          category: string | null
+          created_at: string
+          description: string | null
+          id: string
+          image_url: string | null
+          price: number
+          status: string
+          title: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          category?: string | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          image_url?: string | null
+          price?: number
+          status?: string
+          title: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          category?: string | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          image_url?: string | null
+          price?: number
+          status?: string
+          title?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      profiles: {
+        Row: {
+          address: string | null
+          avatar_url: string | null
+          birthday: string | null
+          created_at: string
+          first_name: string
+          id: string
+          last_name: string
+          middle_name: string | null
+          mobile_number: string | null
+          status: Database["public"]["Enums"]["user_status"]
+          updated_at: string
+        }
+        Insert: {
+          address?: string | null
+          avatar_url?: string | null
+          birthday?: string | null
+          created_at?: string
+          first_name?: string
+          id: string
+          last_name?: string
+          middle_name?: string | null
+          mobile_number?: string | null
+          status?: Database["public"]["Enums"]["user_status"]
+          updated_at?: string
+        }
+        Update: {
+          address?: string | null
+          avatar_url?: string | null
+          birthday?: string | null
+          created_at?: string
+          first_name?: string
+          id?: string
+          last_name?: string
+          middle_name?: string | null
+          mobile_number?: string | null
+          status?: Database["public"]["Enums"]["user_status"]
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      user_roles: {
+        Row: {
+          id: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Insert: {
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Update: {
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          user_id?: string
+        }
+        Relationships: []
+      }
+      verifications: {
+        Row: {
+          anti_spoof_passed: boolean | null
+          anti_spoof_reasons: string[] | null
+          biometric_status: Database["public"]["Enums"]["user_status"]
+          created_at: string
+          document_expiry: string | null
+          document_valid: boolean | null
+          face_match_score: number | null
+          id: string
+          id_back_url: string | null
+          id_front_url: string | null
+          liveness_result: boolean | null
+          ocr_name: string | null
+          philsys_status: Database["public"]["Enums"]["user_status"]
+          qr_verified: boolean | null
+          risk_score: number | null
+          screenshot_checks: Json | null
+          screenshot_score: number | null
+          screenshot_url: string | null
+          selfie_url: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          anti_spoof_passed?: boolean | null
+          anti_spoof_reasons?: string[] | null
+          biometric_status?: Database["public"]["Enums"]["user_status"]
+          created_at?: string
+          document_expiry?: string | null
+          document_valid?: boolean | null
+          face_match_score?: number | null
+          id?: string
+          id_back_url?: string | null
+          id_front_url?: string | null
+          liveness_result?: boolean | null
+          ocr_name?: string | null
+          philsys_status?: Database["public"]["Enums"]["user_status"]
+          qr_verified?: boolean | null
+          risk_score?: number | null
+          screenshot_checks?: Json | null
+          screenshot_score?: number | null
+          screenshot_url?: string | null
+          selfie_url?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          anti_spoof_passed?: boolean | null
+          anti_spoof_reasons?: string[] | null
+          biometric_status?: Database["public"]["Enums"]["user_status"]
+          created_at?: string
+          document_expiry?: string | null
+          document_valid?: boolean | null
+          face_match_score?: number | null
+          id?: string
+          id_back_url?: string | null
+          id_front_url?: string | null
+          liveness_result?: boolean | null
+          ocr_name?: string | null
+          philsys_status?: Database["public"]["Enums"]["user_status"]
+          qr_verified?: boolean | null
+          risk_score?: number | null
+          screenshot_checks?: Json | null
+          screenshot_score?: number | null
+          screenshot_url?: string | null
+          selfie_url?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      has_role: {
+        Args: {
+          _role: Database["public"]["Enums"]["app_role"]
+          _user_id: string
+        }
+        Returns: boolean
+      }
     }
     Enums: {
-      [_ in never]: never
+      app_role: "admin" | "user"
+      user_status: "pending" | "verified" | "rejected"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -150,6 +381,9 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      app_role: ["admin", "user"],
+      user_status: ["pending", "verified", "rejected"],
+    },
   },
 } as const
