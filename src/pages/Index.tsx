@@ -1,85 +1,83 @@
 import { Link } from 'react-router-dom';
-import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
-import { ShoppingBag, Shield, ShieldCheck, TrendingUp } from 'lucide-react';
-import { motion } from 'framer-motion';
+import { ShieldCheck, Shield, UserCheck, Store, ArrowRight } from 'lucide-react';
+import { useAuth } from '@/contexts/AuthContext';
 
 const Index = () => {
   const { isAuthenticated } = useAuth();
 
   return (
     <div className="min-h-[calc(100vh-4rem)]">
-      {/* Hero */}
-      <section className="container py-20 text-center">
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6 }}
-        >
-          <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-primary/10 text-primary text-sm font-medium mb-6">
-            <ShieldCheck className="h-4 w-4" /> Verified & Trusted Marketplace
-          </div>
-          <h1 className="text-5xl md:text-6xl font-bold tracking-tight text-foreground mb-6">
-            Buy & Sell with
-            <span className="text-primary"> Confidence</span>
-          </h1>
-          <p className="text-xl text-muted-foreground max-w-2xl mx-auto mb-8">
-            TrustMart.ph is a marketplace powered by identity verification and trust scores. 
-            Trade safely with verified Filipino sellers and buyers.
-          </p>
-          <div className="flex gap-4 justify-center">
-            {isAuthenticated ? (
-              <Link to="/marketplace">
-                <Button size="lg" className="text-lg px-8">
-                  <ShoppingBag className="h-5 w-5 mr-2" /> Browse Marketplace
-                </Button>
-              </Link>
-            ) : (
-              <>
-                <Link to="/register">
-                  <Button size="lg" className="text-lg px-8">Get Started</Button>
+      <section className="relative overflow-hidden">
+        <div className="absolute inset-0 gradient-primary opacity-5" />
+        <div className="container py-24 md:py-32 relative">
+          <div className="max-w-3xl mx-auto text-center space-y-6">
+            <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-primary/10 text-primary text-sm font-medium">
+              <Shield className="h-4 w-4" />
+              PhilSys-Verified Marketplace
+            </div>
+            <h1 className="text-4xl md:text-6xl font-bold tracking-tight leading-tight">
+              Trade with confidence on the{' '}
+              <span className="text-primary">most secure</span> P2P marketplace
+            </h1>
+            <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
+              Every seller is verified through PhilSys National ID and biometric liveness checks.
+              No scammers, no fakes — just trusted transactions.
+            </p>
+            <div className="flex items-center justify-center gap-4">
+              {isAuthenticated ? (
+                <Link to="/marketplace">
+                  <Button size="lg" className="gap-2">
+                    Browse Marketplace <ArrowRight className="h-4 w-4" />
+                  </Button>
                 </Link>
-                <Link to="/login">
-                  <Button variant="outline" size="lg" className="text-lg px-8">Sign In</Button>
-                </Link>
-              </>
-            )}
+              ) : (
+                <>
+                  <Link to="/register">
+                    <Button size="lg" className="gap-2">
+                      Get Started <ArrowRight className="h-4 w-4" />
+                    </Button>
+                  </Link>
+                  <Link to="/login">
+                    <Button variant="outline" size="lg">Sign In</Button>
+                  </Link>
+                </>
+              )}
+            </div>
           </div>
-        </motion.div>
+        </div>
       </section>
 
-      {/* Features */}
-      <section className="container pb-20">
-        <div className="grid md:grid-cols-3 gap-8">
-          {[
-            {
-              icon: ShieldCheck,
-              title: '2-Step Verification',
-              description: 'PhilSys ID + biometric verification ensures every user is who they claim to be.',
-            },
-            {
-              icon: Shield,
-              title: 'Trust Scores',
-              description: 'Dynamic trust scores based on transaction history, verification, and community feedback.',
-            },
-            {
-              icon: TrendingUp,
-              title: 'Safe Transactions',
-              description: 'COD unlocked for trusted users. Online payments available for everyone.',
-            },
-          ].map((feature, i) => (
-            <motion.div
-              key={feature.title}
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.5, delay: 0.2 + i * 0.1 }}
-              className="p-6 rounded-xl border bg-card"
-            >
-              <feature.icon className="h-10 w-10 text-primary mb-4" />
-              <h3 className="text-lg font-semibold text-foreground mb-2">{feature.title}</h3>
-              <p className="text-muted-foreground">{feature.description}</p>
-            </motion.div>
-          ))}
+      <section className="py-20 border-t">
+        <div className="container">
+          <h2 className="text-3xl font-bold text-center mb-12">How TrustMart.ph Keeps You Safe</h2>
+          <div className="grid md:grid-cols-3 gap-8">
+            {[
+              { icon: ShieldCheck, title: 'PhilSys ID Verification', desc: 'Every user must verify their PhilSys National ID through the official eVerify portal with automated anti-tampering detection.' },
+              { icon: UserCheck, title: 'Biometric Liveness Check', desc: 'Real-time webcam-based liveness detection with randomized challenges prevents spoofing and impersonation.' },
+              { icon: Store, title: 'Verified-Only Marketplace', desc: 'Only fully verified users can sell products. Face re-authentication is required for every transaction.' },
+            ].map((f, i) => (
+              <div key={i} className="p-6 rounded-xl border bg-card hover:shadow-lg transition-shadow">
+                <div className="h-12 w-12 rounded-lg bg-primary/10 flex items-center justify-center mb-4">
+                  <f.icon className="h-6 w-6 text-primary" />
+                </div>
+                <h3 className="text-lg font-semibold mb-2">{f.title}</h3>
+                <p className="text-muted-foreground text-sm leading-relaxed">{f.desc}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <section className="py-20 border-t">
+        <div className="container">
+          <div className="max-w-2xl mx-auto text-center space-y-6">
+            <h2 className="text-3xl font-bold">Ready to trade safely?</h2>
+            <p className="text-muted-foreground">Join thousands of verified Filipino traders on TrustMart.ph</p>
+            <Link to="/register">
+              <Button size="lg" className="gap-2">Create Your Account <ArrowRight className="h-4 w-4" /></Button>
+            </Link>
+          </div>
         </div>
       </section>
     </div>

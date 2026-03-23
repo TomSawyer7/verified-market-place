@@ -1,84 +1,86 @@
 import { useAuth } from '@/contexts/AuthContext';
-import { useMarketplace } from '@/contexts/MarketplaceContext';
-import { TrustScoreBadge, VerificationBadge } from '@/components/TrustBadge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { ShieldCheck, Shield, User, Mail, Calendar, MapPin, Phone } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 const Profile = () => {
-  const { user } = useAuth();
-  const { listings, transactions } = useMarketplace();
+  const { user, profile, isVerified, isAdmin, signOut } = useAuth();
   const navigate = useNavigate();
 
-  if (!user) { navigate('/login'); return null; }
+  if (!user || !profile) {
+    return (
+      <div className="container py-20 text-center">
+        <p className="text-muted-foreground">Please log in to view your profile.</p>
+        <Button className="mt-4" onClick={() => navigate('/login')}>Sign In</Button>
+      </div>
+    );
+  }
 
-  const myListings = listings.filter(l => l.sellerId === user.id);
-  const myTransactions = transactions.filter(t => t.buyerId === user.id || t.sellerId === user.id);
+  const fullName = `${profile.first_name} ${profile.middle_name || ''} ${profile.last_name}`.trim();
 
   return (
-    <div className="container py-8 max-w-3xl">
-      <Card className="mb-6 animate-fade-in">
-        <CardContent className="p-6">
+    <div className="container py-8 max-w-2xl">
+      <Card>
+        <CardHeader>
           <div className="flex items-center gap-4">
-            <div className="h-16 w-16 rounded-full bg-primary/10 flex items-center justify-center text-2xl font-bold text-primary">
-              {user.name[0]}
+            <div className="h-16 w-16 rounded-full gradient-primary flex items-center justify-center text-primary-foreground text-xl font-bold">
+              {profile.first_name?.[0]}{profile.last_name?.[0]}
             </div>
             <div className="flex-1">
-              <h1 className="text-2xl font-bold text-foreground">{user.name}</h1>
-              <p className="text-muted-foreground">{user.email}</p>
-              <div className="flex gap-2 mt-2">
-                <TrustScoreBadge score={user.trustScore} />
-                <VerificationBadge status={user.verificationStatus} />
-                <Badge variant="secondary">{user.role}</Badge>
+              <CardTitle className="text-2xl">{fullName}</CardTitle>
+              <div className="flex items-center gap-2 mt-1">
+                <Badge variant={isVerified ? 'default' : 'secondary'} className="gap-1">
+                  {isVerified ? <ShieldCheck className="h-3 w-3" /> : <Shield className="h-3 w-3" />}
+                  {isVerified ? 'Fully Verified' : profile.status === 'pending' ? 'Pending' : 'Not Verified'}
+                </Badge>
+                {isAdmin && <Badge variant="outline">Admin</Badge>}
               </div>
             </div>
           </div>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid gap-3">
+            <div className="flex items-center gap-3 text-sm">
+              <Mail className="h-4 w-4 text-muted-foreground" />
+              <span>{user.email}</span>
+            </div>
+            {profile.mobile_number && (
+              <div className="flex items-center gap-3 text-sm">
+                <Phone className="h-4 w-4 text-muted-foreground" />
+                <span>{profile.mobile_number}</span>
+              </div>
+            )}
+            {profile.address && (
+              <div className="flex items-center gap-3 text-sm">
+                <MapPin className="h-4 w-4 text-muted-foreground" />
+                <span>{profile.address}</span>
+              </div>
+            )}
+            {profile.birthday && (
+              <div className="flex items-center gap-3 text-sm">
+                <Calendar className="h-4 w-4 text-muted-foreground" />
+                <span>{profile.birthday}</span>
+              </div>
+            )}
+            <div className="flex items-center gap-3 text-sm">
+              <User className="h-4 w-4 text-muted-foreground" />
+              <span>Member since {new Date(profile.created_at).toLocaleDateString()}</span>
+            </div>
+          </div>
+          {!isVerified && (
+            <div className="bg-primary/5 border border-primary/20 rounded-lg p-4">
+              <p className="text-sm font-medium mb-2">Complete your verification</p>
+              <p className="text-xs text-muted-foreground mb-3">Verify your identity to unlock full marketplace access.</p>
+              <Button size="sm" onClick={() => navigate('/verification')}>Start Verification</Button>
+            </div>
+          )}
+          <Button variant="outline" className="w-full" onClick={async () => { await signOut(); navigate('/'); }}>
+            Sign Out
+          </Button>
         </CardContent>
       </Card>
-
-      <div className="grid md:grid-cols-2 gap-6">
-        <Card>
-          <CardHeader><CardTitle className="text-lg">My Listings ({myListings.length})</CardTitle></CardHeader>
-          <CardContent>
-            {myListings.length === 0 ? (
-              <p className="text-muted-foreground text-sm">No listings yet</p>
-            ) : (
-              <div className="space-y-3">
-                {myListings.map(l => (
-                  <div key={l.id} className="flex justify-between items-center p-2 rounded-lg bg-muted/50">
-                    <span className="text-sm font-medium text-foreground">{l.title}</span>
-                    <span className="text-sm font-bold text-primary">₱{l.price.toLocaleString()}</span>
-                  </div>
-                ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader><CardTitle className="text-lg">Transactions ({myTransactions.length})</CardTitle></CardHeader>
-          <CardContent>
-            {myTransactions.length === 0 ? (
-              <p className="text-muted-foreground text-sm">No transactions yet</p>
-            ) : (
-              <div className="space-y-3">
-                {myTransactions.map(t => (
-                  <div key={t.id} className="flex justify-between items-center p-2 rounded-lg bg-muted/50">
-                    <div>
-                      <span className="text-sm font-medium text-foreground">{t.listingTitle}</span>
-                      <div className="flex gap-1 mt-1">
-                        <Badge variant="secondary" className="text-xs">{t.method.toUpperCase()}</Badge>
-                        <Badge variant={t.status === 'completed' ? 'default' : 'secondary'} className="text-xs">{t.status}</Badge>
-                      </div>
-                    </div>
-                    <span className="text-sm font-bold text-primary">₱{t.amount.toLocaleString()}</span>
-                  </div>
-                ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      </div>
     </div>
   );
 };
