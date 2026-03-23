@@ -15,7 +15,8 @@ interface Product {
   image_url: string | null;
   created_at: string;
   user_id: string;
-  profiles?: { first_name: string; last_name: string; status: string } | null;
+  seller_name?: string;
+  seller_verified?: boolean;
 }
 
 const Marketplace = () => {
@@ -27,10 +28,29 @@ const Marketplace = () => {
     const fetchProducts = async () => {
       const { data } = await supabase
         .from('products')
-        .select('*, profiles(first_name, last_name, status)')
+        .select('*')
         .eq('status', 'active')
         .order('created_at', { ascending: false });
-      setProducts((data as Product[]) || []);
+
+      if (data) {
+        // Fetch seller profiles separately
+        const userIds = [...new Set(data.map(p => p.user_id))];
+        const { data: profiles } = await supabase
+          .from('profiles')
+          .select('id, first_name, last_name, status')
+          .in('id', userIds);
+
+        const profileMap = new Map(profiles?.map(p => [p.id, p]) || []);
+        const enriched: Product[] = data.map(p => {
+          const prof = profileMap.get(p.user_id);
+          return {
+            ...p,
+            seller_name: prof ? `${prof.first_name} ${prof.last_name}` : 'Unknown',
+            seller_verified: prof?.status === 'verified',
+          };
+        });
+        setProducts(enriched);
+      }
       setLoading(false);
     };
     fetchProducts();
@@ -88,7 +108,7 @@ const Marketplace = () => {
                         <Package className="h-12 w-12 text-muted-foreground" />
                       </div>
                     )}
-                    {product.profiles?.status === 'verified' && (
+                    {product.seller_verified && (
                       <div className="absolute top-2 right-2">
                         <Badge className="gap-1 text-xs">
                           <ShieldCheck className="h-3 w-3" /> Verified
@@ -99,9 +119,7 @@ const Marketplace = () => {
                   <CardContent className="p-4">
                     <h3 className="font-semibold truncate">{product.title}</h3>
                     <p className="text-primary font-bold text-lg mt-1">₱{product.price.toLocaleString()}</p>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      by {product.profiles?.first_name} {product.profiles?.last_name}
-                    </p>
+                    <p className="text-xs text-muted-foreground mt-1">by {product.seller_name}</p>
                   </CardContent>
                 </Card>
               </Link>

@@ -1,85 +1,130 @@
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
-import { useMarketplace } from '@/contexts/MarketplaceContext';
+import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { TrustScoreBadge } from '@/components/TrustBadge';
-import { ShieldCheck, ShieldAlert, FileWarning, Users, CheckCircle } from 'lucide-react';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import { ShieldCheck, ShieldAlert, Users, CheckCircle, XCircle, Clock, ChevronDown, Eye } from 'lucide-react';
 import { toast } from 'sonner';
-import VerificationReviewCard from '@/components/admin/VerificationReviewCard';
+
+interface VerificationRow {
+  id: string;
+  user_id: string;
+  philsys_status: string;
+  biometric_status: string;
+  screenshot_url: string | null;
+  screenshot_score: number;
+  screenshot_checks: any;
+  id_front_url: string | null;
+  selfie_url: string | null;
+  liveness_result: boolean;
+  face_match_score: number;
+  anti_spoof_passed: boolean;
+  anti_spoof_reasons: string[];
+  created_at: string;
+  updated_at: string;
+  profile?: { first_name: string; last_name: string; status: string } | null;
+  email?: string;
+}
 
 const AdminDashboard = () => {
-  const { user, isAdmin, updateTrustScore, updateVerificationStatus, allUsers } = useAuth();
-  const { verificationRequests, reports, updateVerificationRequest, updateReportStatus } = useMarketplace();
+  const { isAdmin, user } = useAuth();
   const navigate = useNavigate();
+  const [verifications, setVerifications] = useState<VerificationRow[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [stats, setStats] = useState({ total: 0, pending: 0, verified: 0 });
 
-  if (!user || !isAdmin) { navigate('/'); return null; }
-
-  const pendingPhilsys = verificationRequests.filter(v => v.type === 'philsys' && v.status === 'pending');
-  const pendingBiometric = verificationRequests.filter(v => v.type === 'biometric' && v.status === 'pending');
-  const pendingReports = reports.filter(r => r.status === 'pending');
-
-  const getUserEmail = (userId: string) => allUsers.find(u => u.id === userId)?.email || '';
-
-  const handleApprovePhilsys = (req: typeof verificationRequests[0]) => {
-    updateVerificationRequest(req.id, 'approved');
-    updateVerificationStatus(req.userId, 'philsys_approved');
-    updateTrustScore(req.userId, 15);
-    toast.success(`PhilSys approved for ${req.userName}. +15 trust score.`);
-  };
-
-  const handleApproveBiometric = (req: typeof verificationRequests[0]) => {
-    updateVerificationRequest(req.id, 'approved');
-    updateVerificationStatus(req.userId, 'fully_verified');
-    updateTrustScore(req.userId, 25);
-    toast.success(`Biometric approved for ${req.userName}. Fully verified! +25 trust score.`);
-  };
-
-  const handleRejectVerification = (req: typeof verificationRequests[0]) => {
-    updateVerificationRequest(req.id, 'rejected');
-    // Reset user status so they can resubmit
-    if (req.type === 'philsys') {
-      updateVerificationStatus(req.userId, 'unverified');
-    } else {
-      updateVerificationStatus(req.userId, 'philsys_approved');
+  useEffect(() => {
+    if (!isAdmin) {
+      navigate('/');
+      return;
     }
-    toast.info(`Verification rejected for ${req.userName}. User can resubmit.`);
+    fetchData();
+  }, [isAdmin, navigate]);
+
+  const fetchData = async () => {
+    // Fetch all verifications
+    const { data: vData } = await supabase.from('verifications').select('*');
+    
+    if (vData) {
+      // Fetch profiles for each user
+      const userIds = vData.map(v => v.user_id);
+      const { data: profiles } = await supabase.from('profiles').select('id, first_name, last_name, status');
+      const profileMap = new Map(profiles?.map(p => [p.id, p]) || []);
+
+      // Get emails from auth (we'll use profile names as proxy)
+      const enriched = vData.map(v => ({
+        ...v,
+        profile: profileMap.get(v.user_id) || null,
+      })) as VerificationRow[];
+
+      setVerifications(enriched);
+      setStats({
+        total: enriched.length,
+        pending: enriched.filter(v => v.philsys_status === 'pending' || v.biometric_status === 'pending').length,
+        verified: enriched.filter(v => v.philsys_status === 'verified' && v.biometric_status === 'verified').length,
+      });
+    }
+    setLoading(false);
   };
 
-  const handleAcceptReport = (report: typeof reports[0]) => {
-    updateReportStatus(report.id, 'accepted');
-    updateTrustScore(report.reportedUserId, -15);
-    toast.success(`Report accepted. ${report.reportedUserName} trust score -15.`);
+  const handleAction = async (verificationId: string, userId: string, field: 'philsys_status' | 'biometric_status', action: 'verified' | 'rejected') => {
+    const update: any = { [field]: action };
+    
+    // If both approved, update profile status
+    const ver = verifications.find(v => v.id === verificationId);
+    const otherField = field === 'philsys_status' ? 'biometric_status' : 'philsys_status';
+    const otherStatus = ver?.[otherField];
+    
+    if (action === 'verified' && otherStatus === 'verified') {
+      await supabase.from('profiles').update({ status: 'verified' as any }).eq('id', userId);
+    }
+
+    await supabase.from('verifications').update(update).eq('id', verificationId);
+
+    // Log admin action
+    if (user) {
+      await supabase.from('admin_logs').insert({
+        admin_id: user.id,
+        user_id: userId,
+        action: `${field}_${action}`,
+        reason: `Admin ${action} ${field.replace('_status', '')} verification`,
+      });
+    }
+
+    toast.success(`Verification ${action}`);
+    fetchData();
   };
 
-  const handleDismissReport = (report: typeof reports[0]) => {
-    updateReportStatus(report.id, 'dismissed');
-    toast.info('Report dismissed.');
-  };
+  const pendingPhilsys = verifications.filter(v => v.philsys_status === 'pending' && v.screenshot_url);
+  const pendingBiometric = verifications.filter(v => v.biometric_status === 'pending' && v.selfie_url && v.philsys_status === 'verified');
+
+  if (loading) {
+    return <div className="container py-8"><div className="animate-pulse h-64 bg-muted rounded" /></div>;
+  }
 
   return (
     <div className="container py-8">
-      <div className="mb-8 animate-fade-in">
-        <h1 className="text-3xl font-bold text-foreground">Admin Dashboard</h1>
-        <p className="text-muted-foreground">Manage verifications, reports, and users</p>
-      </div>
+      <h1 className="text-3xl font-bold mb-6">Admin Dashboard</h1>
 
       {/* Stats */}
-      <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 mb-8">
+      <div className="grid grid-cols-3 gap-4 mb-8">
         {[
-          { label: 'PhilSys Pending', value: pendingPhilsys.length, icon: ShieldAlert, color: 'text-pending' },
-          { label: 'Biometric Pending', value: pendingBiometric.length, icon: ShieldCheck, color: 'text-primary' },
-          { label: 'Open Reports', value: pendingReports.length, icon: FileWarning, color: 'text-destructive' },
-          { label: 'Total Users', value: allUsers.length, icon: Users, color: 'text-foreground' },
-        ].map(stat => (
-          <Card key={stat.label}>
+          { label: 'Total Users', value: stats.total, icon: Users },
+          { label: 'Pending Reviews', value: stats.pending, icon: Clock },
+          { label: 'Fully Verified', value: stats.verified, icon: ShieldCheck },
+        ].map((s, i) => (
+          <Card key={i}>
             <CardContent className="p-4 flex items-center gap-3">
-              <stat.icon className={`h-8 w-8 ${stat.color}`} />
+              <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center">
+                <s.icon className="h-5 w-5 text-primary" />
+              </div>
               <div>
-                <p className="text-2xl font-bold text-foreground">{stat.value}</p>
-                <p className="text-sm text-muted-foreground">{stat.label}</p>
+                <p className="text-2xl font-bold">{s.value}</p>
+                <p className="text-xs text-muted-foreground">{s.label}</p>
               </div>
             </CardContent>
           </Card>
@@ -87,105 +132,127 @@ const AdminDashboard = () => {
       </div>
 
       <Tabs defaultValue="philsys">
-        <TabsList className="mb-4">
-          <TabsTrigger value="philsys">PhilSys ({pendingPhilsys.length})</TabsTrigger>
-          <TabsTrigger value="biometric">Biometric ({pendingBiometric.length})</TabsTrigger>
-          <TabsTrigger value="reports">Reports ({pendingReports.length})</TabsTrigger>
-          <TabsTrigger value="users">Users</TabsTrigger>
+        <TabsList>
+          <TabsTrigger value="philsys" className="gap-1">
+            <ShieldAlert className="h-4 w-4" /> PhilSys ({pendingPhilsys.length})
+          </TabsTrigger>
+          <TabsTrigger value="biometric" className="gap-1">
+            <ShieldCheck className="h-4 w-4" /> Biometric ({pendingBiometric.length})
+          </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="philsys">
+        <TabsContent value="philsys" className="space-y-4 mt-4">
           {pendingPhilsys.length === 0 ? (
-            <Card><CardContent className="p-8 text-center text-muted-foreground">No pending PhilSys verifications</CardContent></Card>
-          ) : (
-            <div className="space-y-4">
-              {pendingPhilsys.map(req => (
-                <VerificationReviewCard
-                  key={req.id}
-                  request={req}
-                  userEmail={getUserEmail(req.userId)}
-                  onApprove={handleApprovePhilsys}
-                  onReject={handleRejectVerification}
-                />
-              ))}
-            </div>
-          )}
-        </TabsContent>
+            <p className="text-center py-8 text-muted-foreground">No pending PhilSys reviews</p>
+          ) : pendingPhilsys.map(v => (
+            <Card key={v.id}>
+              <CardContent className="p-4 space-y-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="font-medium">{v.profile?.first_name} {v.profile?.last_name}</p>
+                    <p className="text-xs text-muted-foreground">Submitted: {new Date(v.updated_at).toLocaleDateString()}</p>
+                  </div>
+                  <Badge variant="secondary">Pending Review</Badge>
+                </div>
 
-        <TabsContent value="biometric">
-          {pendingBiometric.length === 0 ? (
-            <Card><CardContent className="p-8 text-center text-muted-foreground">No pending biometric verifications</CardContent></Card>
-          ) : (
-            <div className="space-y-4">
-              {pendingBiometric.map(req => (
-                <VerificationReviewCard
-                  key={req.id}
-                  request={req}
-                  userEmail={getUserEmail(req.userId)}
-                  onApprove={handleApproveBiometric}
-                  onReject={handleRejectVerification}
-                />
-              ))}
-            </div>
-          )}
-        </TabsContent>
-
-        <TabsContent value="reports">
-          {pendingReports.length === 0 ? (
-            <Card><CardContent className="p-8 text-center text-muted-foreground">No pending reports</CardContent></Card>
-          ) : (
-            <div className="space-y-4">
-              {pendingReports.map(report => (
-                <Card key={report.id} className="animate-fade-in">
-                  <CardContent className="p-4">
-                    <div className="flex items-start justify-between">
+                {/* Security Analysis (Admin Only) */}
+                <Collapsible>
+                  <CollapsibleTrigger className="flex items-center gap-2 text-sm text-primary hover:underline">
+                    <Eye className="h-4 w-4" /> View Security Analysis <ChevronDown className="h-3 w-3" />
+                  </CollapsibleTrigger>
+                  <CollapsibleContent className="mt-3 p-3 bg-muted/50 rounded-lg text-xs space-y-2">
+                    <div className="grid grid-cols-2 gap-2">
                       <div>
-                        <h3 className="font-semibold text-foreground">{report.reason}</h3>
-                        <p className="text-sm text-muted-foreground mt-1">{report.description}</p>
-                        <div className="flex gap-2 mt-2 text-sm">
-                          <span className="text-muted-foreground">Reporter: {report.reporterName}</span>
-                          <span className="text-muted-foreground">→</span>
-                          <span className="text-muted-foreground">Reported: {report.reportedUserName}</span>
-                        </div>
+                        <p className="font-medium">Screenshot Confidence Score</p>
+                        <p className="text-lg font-bold text-primary">{v.screenshot_score?.toFixed(1)}%</p>
                       </div>
-                      <div className="flex gap-2">
-                        <Button size="sm" onClick={() => handleAcceptReport(report)}>
-                          <CheckCircle className="h-4 w-4 mr-1" /> Accept
-                        </Button>
-                        <Button variant="ghost" size="sm" onClick={() => handleDismissReport(report)}>
-                          Dismiss
-                        </Button>
+                      <div>
+                        <p className="font-medium">Risk Assessment</p>
+                        <p className={`text-lg font-bold ${v.screenshot_score >= 60 ? 'text-accent' : 'text-destructive'}`}>
+                          {v.screenshot_score >= 60 ? 'LOW RISK' : 'HIGH RISK'}
+                        </p>
                       </div>
                     </div>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-          )}
+                    <p className="text-muted-foreground">
+                      Anti-tampering engine analyzed resolution, aspect ratio, color variance, and UI pattern matching.
+                      {v.screenshot_score < 60 && ' ⚠️ Score below threshold — manual inspection recommended.'}
+                    </p>
+                  </CollapsibleContent>
+                </Collapsible>
+
+                <div className="flex gap-2">
+                  <Button size="sm" className="gap-1" onClick={() => handleAction(v.id, v.user_id, 'philsys_status', 'verified')}>
+                    <CheckCircle className="h-4 w-4" /> Approve
+                  </Button>
+                  <Button size="sm" variant="destructive" className="gap-1" onClick={() => handleAction(v.id, v.user_id, 'philsys_status', 'rejected')}>
+                    <XCircle className="h-4 w-4" /> Reject
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
         </TabsContent>
 
-        <TabsContent value="users">
-          <div className="space-y-3">
-            {allUsers.map(u => (
-              <Card key={u.id} className="animate-fade-in">
-                <CardContent className="p-4 flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center font-bold text-primary">
-                      {u.name[0]}
-                    </div>
-                    <div>
-                      <p className="font-medium text-foreground">{u.name}</p>
-                      <p className="text-sm text-muted-foreground">{u.email}</p>
-                    </div>
+        <TabsContent value="biometric" className="space-y-4 mt-4">
+          {pendingBiometric.length === 0 ? (
+            <p className="text-center py-8 text-muted-foreground">No pending biometric reviews</p>
+          ) : pendingBiometric.map(v => (
+            <Card key={v.id}>
+              <CardContent className="p-4 space-y-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="font-medium">{v.profile?.first_name} {v.profile?.last_name}</p>
+                    <p className="text-xs text-muted-foreground">Submitted: {new Date(v.updated_at).toLocaleDateString()}</p>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <TrustScoreBadge score={u.trustScore} size="sm" />
-                    <Badge variant={u.role === 'admin' ? 'default' : 'secondary'}>{u.role}</Badge>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
+                  <Badge variant="secondary">Pending Review</Badge>
+                </div>
+
+                {/* Biometric Security Analysis (Admin Only) */}
+                <Collapsible>
+                  <CollapsibleTrigger className="flex items-center gap-2 text-sm text-primary hover:underline">
+                    <Eye className="h-4 w-4" /> View Security Analysis <ChevronDown className="h-3 w-3" />
+                  </CollapsibleTrigger>
+                  <CollapsibleContent className="mt-3 p-3 bg-muted/50 rounded-lg text-xs space-y-2">
+                    <div className="grid grid-cols-3 gap-2">
+                      <div>
+                        <p className="font-medium">Face Match Score</p>
+                        <p className="text-lg font-bold text-primary">{(v.face_match_score * 100).toFixed(1)}%</p>
+                      </div>
+                      <div>
+                        <p className="font-medium">Liveness Result</p>
+                        <p className={`text-lg font-bold ${v.liveness_result ? 'text-accent' : 'text-destructive'}`}>
+                          {v.liveness_result ? 'PASSED' : 'FAILED'}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="font-medium">Anti-Spoofing</p>
+                        <p className={`text-lg font-bold ${v.anti_spoof_passed ? 'text-accent' : 'text-destructive'}`}>
+                          {v.anti_spoof_passed ? 'PASSED' : 'FLAGGED'}
+                        </p>
+                      </div>
+                    </div>
+                    {v.anti_spoof_reasons && v.anti_spoof_reasons.length > 0 && (
+                      <div>
+                        <p className="font-medium text-destructive">Flags:</p>
+                        <ul className="list-disc list-inside text-muted-foreground">
+                          {v.anti_spoof_reasons.map((r, i) => <li key={i}>{r}</li>)}
+                        </ul>
+                      </div>
+                    )}
+                  </CollapsibleContent>
+                </Collapsible>
+
+                <div className="flex gap-2">
+                  <Button size="sm" className="gap-1" onClick={() => handleAction(v.id, v.user_id, 'biometric_status', 'verified')}>
+                    <CheckCircle className="h-4 w-4" /> Approve
+                  </Button>
+                  <Button size="sm" variant="destructive" className="gap-1" onClick={() => handleAction(v.id, v.user_id, 'biometric_status', 'rejected')}>
+                    <XCircle className="h-4 w-4" /> Reject
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
         </TabsContent>
       </Tabs>
     </div>
