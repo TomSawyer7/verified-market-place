@@ -12,6 +12,7 @@ interface Profile {
   mobile_number: string | null;
   avatar_url: string | null;
   status: 'pending' | 'verified' | 'rejected';
+  created_at: string;
 }
 
 interface AuthContextType {
