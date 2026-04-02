@@ -5,9 +5,10 @@ import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Input } from '@/components/ui/input';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
-import { ShieldCheck, ShieldAlert, Users, CheckCircle, XCircle, Clock, ChevronDown, Eye } from 'lucide-react';
+import { ShieldCheck, ShieldAlert, Users, CheckCircle, XCircle, Clock, ChevronDown, Eye, UserPlus } from 'lucide-react';
 import { toast } from 'sonner';
 
 interface VerificationRow {
@@ -27,7 +28,6 @@ interface VerificationRow {
   created_at: string;
   updated_at: string;
   profile?: { first_name: string; last_name: string; status: string } | null;
-  email?: string;
 }
 
 const AdminDashboard = () => {
@@ -36,31 +36,20 @@ const AdminDashboard = () => {
   const [verifications, setVerifications] = useState<VerificationRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState({ total: 0, pending: 0, verified: 0 });
+  const [adminEmail, setAdminEmail] = useState('');
+  const [promoting, setPromoting] = useState(false);
 
   useEffect(() => {
-    if (!isAdmin) {
-      navigate('/');
-      return;
-    }
+    if (!isAdmin) { navigate('/'); return; }
     fetchData();
   }, [isAdmin, navigate]);
 
   const fetchData = async () => {
-    // Fetch all verifications
     const { data: vData } = await supabase.from('verifications').select('*');
-    
     if (vData) {
-      // Fetch profiles for each user
-      const userIds = vData.map(v => v.user_id);
       const { data: profiles } = await supabase.from('profiles').select('id, first_name, last_name, status');
-      const profileMap = new Map(profiles?.map(p => [p.id, p]) || []);
-
-      // Get emails from auth (we'll use profile names as proxy)
-      const enriched = vData.map(v => ({
-        ...v,
-        profile: profileMap.get(v.user_id) || null,
-      })) as VerificationRow[];
-
+      const profileMap = new Map((profiles || []).map(p => [p.id, p] as const));
+      const enriched = vData.map(v => ({ ...v, profile: profileMap.get(v.user_id) || null })) as VerificationRow[];
       setVerifications(enriched);
       setStats({
         total: enriched.length,
@@ -73,19 +62,16 @@ const AdminDashboard = () => {
 
   const handleAction = async (verificationId: string, userId: string, field: 'philsys_status' | 'biometric_status', action: 'verified' | 'rejected') => {
     const update: any = { [field]: action };
-    
-    // If both approved, update profile status
     const ver = verifications.find(v => v.id === verificationId);
     const otherField = field === 'philsys_status' ? 'biometric_status' : 'philsys_status';
     const otherStatus = ver?.[otherField];
-    
+
     if (action === 'verified' && otherStatus === 'verified') {
       await supabase.from('profiles').update({ status: 'verified' as any }).eq('id', userId);
     }
 
     await supabase.from('verifications').update(update).eq('id', verificationId);
 
-    // Log admin action
     if (user) {
       await supabase.from('admin_logs').insert({
         admin_id: user.id,
@@ -93,99 +79,137 @@ const AdminDashboard = () => {
         action: `${field}_${action}`,
         reason: `Admin ${action} ${field.replace('_status', '')} verification`,
       });
+
+      // Send notification to user
+      await supabase.from('notifications').insert({
+        user_id: userId,
+        type: 'verification',
+        title: action === 'verified' ? 'Verification Approved' : 'Verification Rejected',
+        body: `Your ${field.replace('_status', '')} verification has been ${action}.`,
+        link: '/verification',
+      });
     }
 
     toast.success(`Verification ${action}`);
     fetchData();
   };
 
+  const handlePromoteAdmin = async () => {
+    if (!adminEmail) return;
+    setPromoting(true);
+    try {
+      const projectId = import.meta.env.VITE_SUPABASE_PROJECT_ID;
+      const res = await fetch(`https://${projectId}.supabase.co/functions/v1/setup-admin`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}` },
+        body: JSON.stringify({ email: adminEmail }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        toast.success(data.message);
+        setAdminEmail('');
+      } else {
+        toast.error(data.error || 'Failed');
+      }
+    } catch {
+      toast.error('Failed to promote admin');
+    }
+    setPromoting(false);
+  };
+
   const pendingPhilsys = verifications.filter(v => v.philsys_status === 'pending' && v.screenshot_url);
   const pendingBiometric = verifications.filter(v => v.biometric_status === 'pending' && v.selfie_url && v.philsys_status === 'verified');
 
-  if (loading) {
-    return <div className="container py-8"><div className="animate-pulse h-64 bg-muted rounded" /></div>;
-  }
+  if (loading) return <div className="container py-8"><div className="animate-pulse h-64 bg-muted rounded" /></div>;
 
   return (
     <div className="container py-8">
-      <h1 className="text-3xl font-bold mb-6">Admin Dashboard</h1>
+      <div className="flex items-center justify-between mb-6">
+        <h1 className="text-2xl font-bold">Admin Dashboard</h1>
+      </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-3 gap-4 mb-8">
+      <div className="grid grid-cols-3 gap-3 mb-6">
         {[
           { label: 'Total Users', value: stats.total, icon: Users },
-          { label: 'Pending Reviews', value: stats.pending, icon: Clock },
-          { label: 'Fully Verified', value: stats.verified, icon: ShieldCheck },
+          { label: 'Pending', value: stats.pending, icon: Clock },
+          { label: 'Verified', value: stats.verified, icon: ShieldCheck },
         ].map((s, i) => (
-          <Card key={i}>
+          <Card key={i} className="border">
             <CardContent className="p-4 flex items-center gap-3">
-              <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center">
-                <s.icon className="h-5 w-5 text-primary" />
+              <div className="h-9 w-9 rounded-md border flex items-center justify-center">
+                <s.icon className="h-4 w-4" />
               </div>
               <div>
-                <p className="text-2xl font-bold">{s.value}</p>
-                <p className="text-xs text-muted-foreground">{s.label}</p>
+                <p className="text-xl font-bold">{s.value}</p>
+                <p className="text-[11px] text-muted-foreground">{s.label}</p>
               </div>
             </CardContent>
           </Card>
         ))}
       </div>
 
+      {/* Admin Promotion */}
+      <Card className="mb-6 border">
+        <CardContent className="p-4">
+          <div className="flex items-center gap-3">
+            <UserPlus className="h-4 w-4 text-muted-foreground" />
+            <Input placeholder="user@email.com" value={adminEmail} onChange={e => setAdminEmail(e.target.value)} className="flex-1" />
+            <Button size="sm" onClick={handlePromoteAdmin} disabled={promoting || !adminEmail} className="bg-foreground text-background hover:bg-foreground/90">
+              {promoting ? 'Promoting...' : 'Make Admin'}
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
       <Tabs defaultValue="philsys">
         <TabsList>
-          <TabsTrigger value="philsys" className="gap-1">
-            <ShieldAlert className="h-4 w-4" /> PhilSys ({pendingPhilsys.length})
+          <TabsTrigger value="philsys" className="gap-1 text-xs">
+            <ShieldAlert className="h-3 w-3" /> PhilSys ({pendingPhilsys.length})
           </TabsTrigger>
-          <TabsTrigger value="biometric" className="gap-1">
-            <ShieldCheck className="h-4 w-4" /> Biometric ({pendingBiometric.length})
+          <TabsTrigger value="biometric" className="gap-1 text-xs">
+            <ShieldCheck className="h-3 w-3" /> Biometric ({pendingBiometric.length})
           </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="philsys" className="space-y-4 mt-4">
+        <TabsContent value="philsys" className="space-y-3 mt-4">
           {pendingPhilsys.length === 0 ? (
-            <p className="text-center py-8 text-muted-foreground">No pending PhilSys reviews</p>
+            <p className="text-center py-8 text-sm text-muted-foreground">No pending PhilSys reviews</p>
           ) : pendingPhilsys.map(v => (
-            <Card key={v.id}>
-              <CardContent className="p-4 space-y-4">
+            <Card key={v.id} className="border">
+              <CardContent className="p-4 space-y-3">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="font-medium">{v.profile?.first_name} {v.profile?.last_name}</p>
-                    <p className="text-xs text-muted-foreground">Submitted: {new Date(v.updated_at).toLocaleDateString()}</p>
+                    <p className="font-medium text-sm">{v.profile?.first_name} {v.profile?.last_name}</p>
+                    <p className="text-[11px] text-muted-foreground">{new Date(v.updated_at).toLocaleDateString()}</p>
                   </div>
-                  <Badge variant="secondary">Pending Review</Badge>
+                  <Badge variant="secondary" className="text-[10px]">Pending</Badge>
                 </div>
-
-                {/* Security Analysis (Admin Only) */}
                 <Collapsible>
-                  <CollapsibleTrigger className="flex items-center gap-2 text-sm text-primary hover:underline">
-                    <Eye className="h-4 w-4" /> View Security Analysis <ChevronDown className="h-3 w-3" />
+                  <CollapsibleTrigger className="flex items-center gap-1.5 text-xs hover:underline">
+                    <Eye className="h-3 w-3" /> Security Analysis <ChevronDown className="h-3 w-3" />
                   </CollapsibleTrigger>
-                  <CollapsibleContent className="mt-3 p-3 bg-muted/50 rounded-lg text-xs space-y-2">
+                  <CollapsibleContent className="mt-2 p-3 bg-muted rounded-lg text-xs space-y-2">
                     <div className="grid grid-cols-2 gap-2">
                       <div>
-                        <p className="font-medium">Screenshot Confidence Score</p>
-                        <p className="text-lg font-bold text-primary">{v.screenshot_score?.toFixed(1)}%</p>
+                        <p className="text-muted-foreground">Confidence</p>
+                        <p className="text-lg font-bold">{v.screenshot_score?.toFixed(1)}%</p>
                       </div>
                       <div>
-                        <p className="font-medium">Risk Assessment</p>
-                        <p className={`text-lg font-bold ${v.screenshot_score >= 60 ? 'text-accent' : 'text-destructive'}`}>
-                          {v.screenshot_score >= 60 ? 'LOW RISK' : 'HIGH RISK'}
+                        <p className="text-muted-foreground">Risk</p>
+                        <p className={`text-lg font-bold ${v.screenshot_score >= 60 ? 'text-green-700' : 'text-red-600'}`}>
+                          {v.screenshot_score >= 60 ? 'LOW' : 'HIGH'}
                         </p>
                       </div>
                     </div>
-                    <p className="text-muted-foreground">
-                      Anti-tampering engine analyzed resolution, aspect ratio, color variance, and UI pattern matching.
-                      {v.screenshot_score < 60 && ' ⚠️ Score below threshold — manual inspection recommended.'}
-                    </p>
                   </CollapsibleContent>
                 </Collapsible>
-
                 <div className="flex gap-2">
-                  <Button size="sm" className="gap-1" onClick={() => handleAction(v.id, v.user_id, 'philsys_status', 'verified')}>
-                    <CheckCircle className="h-4 w-4" /> Approve
+                  <Button size="sm" className="gap-1 bg-foreground text-background hover:bg-foreground/90" onClick={() => handleAction(v.id, v.user_id, 'philsys_status', 'verified')}>
+                    <CheckCircle className="h-3 w-3" /> Approve
                   </Button>
-                  <Button size="sm" variant="destructive" className="gap-1" onClick={() => handleAction(v.id, v.user_id, 'philsys_status', 'rejected')}>
-                    <XCircle className="h-4 w-4" /> Reject
+                  <Button size="sm" variant="outline" className="gap-1" onClick={() => handleAction(v.id, v.user_id, 'philsys_status', 'rejected')}>
+                    <XCircle className="h-3 w-3" /> Reject
                   </Button>
                 </div>
               </CardContent>
@@ -193,61 +217,50 @@ const AdminDashboard = () => {
           ))}
         </TabsContent>
 
-        <TabsContent value="biometric" className="space-y-4 mt-4">
+        <TabsContent value="biometric" className="space-y-3 mt-4">
           {pendingBiometric.length === 0 ? (
-            <p className="text-center py-8 text-muted-foreground">No pending biometric reviews</p>
+            <p className="text-center py-8 text-sm text-muted-foreground">No pending biometric reviews</p>
           ) : pendingBiometric.map(v => (
-            <Card key={v.id}>
-              <CardContent className="p-4 space-y-4">
+            <Card key={v.id} className="border">
+              <CardContent className="p-4 space-y-3">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="font-medium">{v.profile?.first_name} {v.profile?.last_name}</p>
-                    <p className="text-xs text-muted-foreground">Submitted: {new Date(v.updated_at).toLocaleDateString()}</p>
+                    <p className="font-medium text-sm">{v.profile?.first_name} {v.profile?.last_name}</p>
+                    <p className="text-[11px] text-muted-foreground">{new Date(v.updated_at).toLocaleDateString()}</p>
                   </div>
-                  <Badge variant="secondary">Pending Review</Badge>
+                  <Badge variant="secondary" className="text-[10px]">Pending</Badge>
                 </div>
-
-                {/* Biometric Security Analysis (Admin Only) */}
                 <Collapsible>
-                  <CollapsibleTrigger className="flex items-center gap-2 text-sm text-primary hover:underline">
-                    <Eye className="h-4 w-4" /> View Security Analysis <ChevronDown className="h-3 w-3" />
+                  <CollapsibleTrigger className="flex items-center gap-1.5 text-xs hover:underline">
+                    <Eye className="h-3 w-3" /> Security Analysis <ChevronDown className="h-3 w-3" />
                   </CollapsibleTrigger>
-                  <CollapsibleContent className="mt-3 p-3 bg-muted/50 rounded-lg text-xs space-y-2">
+                  <CollapsibleContent className="mt-2 p-3 bg-muted rounded-lg text-xs space-y-2">
                     <div className="grid grid-cols-3 gap-2">
                       <div>
-                        <p className="font-medium">Face Match Score</p>
-                        <p className="text-lg font-bold text-primary">{(v.face_match_score * 100).toFixed(1)}%</p>
+                        <p className="text-muted-foreground">Face Match</p>
+                        <p className="text-lg font-bold">{(v.face_match_score * 100).toFixed(1)}%</p>
                       </div>
                       <div>
-                        <p className="font-medium">Liveness Result</p>
-                        <p className={`text-lg font-bold ${v.liveness_result ? 'text-accent' : 'text-destructive'}`}>
-                          {v.liveness_result ? 'PASSED' : 'FAILED'}
+                        <p className="text-muted-foreground">Liveness</p>
+                        <p className={`text-lg font-bold ${v.liveness_result ? 'text-green-700' : 'text-red-600'}`}>
+                          {v.liveness_result ? 'PASS' : 'FAIL'}
                         </p>
                       </div>
                       <div>
-                        <p className="font-medium">Anti-Spoofing</p>
-                        <p className={`text-lg font-bold ${v.anti_spoof_passed ? 'text-accent' : 'text-destructive'}`}>
-                          {v.anti_spoof_passed ? 'PASSED' : 'FLAGGED'}
+                        <p className="text-muted-foreground">Anti-Spoof</p>
+                        <p className={`text-lg font-bold ${v.anti_spoof_passed ? 'text-green-700' : 'text-red-600'}`}>
+                          {v.anti_spoof_passed ? 'PASS' : 'FLAG'}
                         </p>
                       </div>
                     </div>
-                    {v.anti_spoof_reasons && v.anti_spoof_reasons.length > 0 && (
-                      <div>
-                        <p className="font-medium text-destructive">Flags:</p>
-                        <ul className="list-disc list-inside text-muted-foreground">
-                          {v.anti_spoof_reasons.map((r, i) => <li key={i}>{r}</li>)}
-                        </ul>
-                      </div>
-                    )}
                   </CollapsibleContent>
                 </Collapsible>
-
                 <div className="flex gap-2">
-                  <Button size="sm" className="gap-1" onClick={() => handleAction(v.id, v.user_id, 'biometric_status', 'verified')}>
-                    <CheckCircle className="h-4 w-4" /> Approve
+                  <Button size="sm" className="gap-1 bg-foreground text-background hover:bg-foreground/90" onClick={() => handleAction(v.id, v.user_id, 'biometric_status', 'verified')}>
+                    <CheckCircle className="h-3 w-3" /> Approve
                   </Button>
-                  <Button size="sm" variant="destructive" className="gap-1" onClick={() => handleAction(v.id, v.user_id, 'biometric_status', 'rejected')}>
-                    <XCircle className="h-4 w-4" /> Reject
+                  <Button size="sm" variant="outline" className="gap-1" onClick={() => handleAction(v.id, v.user_id, 'biometric_status', 'rejected')}>
+                    <XCircle className="h-3 w-3" /> Reject
                   </Button>
                 </div>
               </CardContent>
