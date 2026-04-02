@@ -2,7 +2,7 @@ import { useEffect, useState, useRef, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
@@ -62,10 +62,7 @@ const ProductDetail = () => {
   }, []);
 
   const handleProtectedAction = (action: 'buy' | 'chat') => {
-    if (!user) {
-      navigate('/login');
-      return;
-    }
+    if (!user) { navigate('/login'); return; }
     if (!isVerified) {
       toast.error('You must be fully verified to perform this action');
       navigate('/verification');
@@ -73,6 +70,40 @@ const ProductDetail = () => {
     }
     setFaceAuthAction(action);
     setFaceAuthOpen(true);
+  };
+
+  const startOrOpenChat = async () => {
+    if (!user || !product) return;
+    // Find or create conversation
+    const { data: existing } = await supabase
+      .from('conversations')
+      .select('id')
+      .eq('product_id', product.id)
+      .eq('buyer_id', user.id)
+      .eq('seller_id', product.user_id)
+      .maybeSingle();
+
+    if (existing) {
+      navigate(`/messages?conv=${existing.id}`);
+    } else {
+      const { data: newConv } = await supabase.from('conversations').insert({
+        product_id: product.id,
+        buyer_id: user.id,
+        seller_id: product.user_id,
+      }).select('id').single();
+
+      if (newConv) {
+        // Notify seller
+        await supabase.from('notifications').insert({
+          user_id: product.user_id,
+          type: 'message',
+          title: 'New inquiry',
+          body: `Someone wants to chat about "${product.title}"`,
+          link: `/messages?conv=${newConv.id}`,
+        });
+        navigate(`/messages?conv=${newConv.id}`);
+      }
+    }
   };
 
   const handleFaceVerify = async () => {
@@ -84,8 +115,6 @@ const ProductDetail = () => {
       if (detection && detection.score > 0.7) {
         stopCamera();
         setFaceAuthOpen(false);
-        toast.success(faceAuthAction === 'buy' ? 'Identity confirmed! Processing purchase...' : 'Identity confirmed! Opening chat...');
-        // Log the re-auth event
         if (user) {
           await supabase.from('audit_trail').insert({
             user_id: user.id,
@@ -94,21 +123,24 @@ const ProductDetail = () => {
             details: `Face re-auth for ${faceAuthAction} on product ${id}, confidence: ${(detection.score * 100).toFixed(1)}%`,
           });
         }
+        if (faceAuthAction === 'chat') {
+          toast.success('Identity confirmed! Opening chat...');
+          await startOrOpenChat();
+        } else {
+          toast.success('Identity confirmed! Processing purchase...');
+        }
       } else {
         toast.error('Face not detected clearly. Please try again.');
       }
-    } catch (err) {
+    } catch {
       toast.error('Face verification failed. Try again.');
     }
     setVerifying(false);
   };
 
   useEffect(() => {
-    if (faceAuthOpen) {
-      startCamera();
-    } else {
-      stopCamera();
-    }
+    if (faceAuthOpen) startCamera();
+    else stopCamera();
     return () => stopCamera();
   }, [faceAuthOpen, startCamera, stopCamera]);
 
@@ -118,7 +150,6 @@ const ProductDetail = () => {
         <div className="animate-pulse space-y-4">
           <div className="aspect-video bg-muted rounded-lg max-w-2xl" />
           <div className="h-8 bg-muted rounded w-1/2" />
-          <div className="h-4 bg-muted rounded w-1/3" />
         </div>
       </div>
     );
@@ -136,8 +167,7 @@ const ProductDetail = () => {
   return (
     <div className="container py-8">
       <div className="grid lg:grid-cols-2 gap-8">
-        {/* Product Image */}
-        <div className="aspect-square bg-muted rounded-xl overflow-hidden">
+        <div className="aspect-square bg-muted rounded-lg overflow-hidden">
           {product.image_url ? (
             <img src={product.image_url} alt={product.title} className="object-cover w-full h-full" />
           ) : (
@@ -147,28 +177,24 @@ const ProductDetail = () => {
           )}
         </div>
 
-        {/* Product Info */}
         <div className="space-y-6">
           <div>
-            <Badge variant="secondary" className="mb-2">{product.category || 'General'}</Badge>
-            <h1 className="text-3xl font-bold">{product.title}</h1>
-            <p className="text-3xl font-bold text-primary mt-2">₱{product.price.toLocaleString()}</p>
+            <Badge variant="secondary" className="mb-2 text-xs">{product.category || 'General'}</Badge>
+            <h1 className="text-2xl font-bold">{product.title}</h1>
+            <p className="text-2xl font-bold mt-2">₱{product.price.toLocaleString()}</p>
           </div>
 
-          <p className="text-muted-foreground leading-relaxed">{product.description}</p>
+          <p className="text-muted-foreground leading-relaxed text-sm">{product.description}</p>
 
-          {/* Seller Info */}
           <Card>
             <CardContent className="p-4 flex items-center gap-3">
-              <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">
-                <span className="text-sm font-bold text-primary">
-                  {seller?.first_name?.[0]}{seller?.last_name?.[0]}
-                </span>
+              <div className="h-10 w-10 rounded-full bg-foreground/5 flex items-center justify-center">
+                <span className="text-sm font-bold">{seller?.first_name?.[0]}{seller?.last_name?.[0]}</span>
               </div>
               <div className="flex-1">
-                <p className="font-medium">{seller?.first_name} {seller?.last_name}</p>
+                <p className="font-medium text-sm">{seller?.first_name} {seller?.last_name}</p>
                 {seller?.status === 'verified' && (
-                  <div className="flex items-center gap-1 text-xs text-primary">
+                  <div className="flex items-center gap-1 text-xs text-muted-foreground">
                     <ShieldCheck className="h-3 w-3" /> Verified Seller
                   </div>
                 )}
@@ -176,9 +202,8 @@ const ProductDetail = () => {
             </CardContent>
           </Card>
 
-          {/* Actions */}
           <div className="flex gap-3">
-            <Button size="lg" className="flex-1 gap-2" onClick={() => handleProtectedAction('buy')}>
+            <Button size="lg" className="flex-1 gap-2 bg-foreground text-background hover:bg-foreground/90" onClick={() => handleProtectedAction('buy')}>
               <ShoppingCart className="h-4 w-4" /> Buy Now
             </Button>
             <Button size="lg" variant="outline" className="flex-1 gap-2" onClick={() => handleProtectedAction('chat')}>
@@ -186,23 +211,20 @@ const ProductDetail = () => {
             </Button>
           </div>
 
-          <div className="flex items-center gap-2 text-xs text-muted-foreground bg-muted/50 p-3 rounded-lg">
+          <div className="flex items-center gap-2 text-xs text-muted-foreground border p-3 rounded-lg">
             <AlertTriangle className="h-4 w-4 flex-shrink-0" />
-            <span>Face ID re-authentication is required before completing any transaction for your security.</span>
+            <span>Face ID re-authentication required for all transactions.</span>
           </div>
         </div>
       </div>
 
-      {/* Face Re-Auth Dialog */}
       <Dialog open={faceAuthOpen} onOpenChange={setFaceAuthOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Camera className="h-5 w-5" /> Face ID Re-authentication
             </DialogTitle>
-            <DialogDescription>
-              Look directly at the camera to confirm your identity before proceeding.
-            </DialogDescription>
+            <DialogDescription>Look at the camera to confirm your identity.</DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
             <div className="relative aspect-video bg-muted rounded-lg overflow-hidden">
@@ -213,7 +235,7 @@ const ProductDetail = () => {
                 </div>
               )}
             </div>
-            <Button onClick={handleFaceVerify} disabled={verifying || !cameraActive} className="w-full">
+            <Button onClick={handleFaceVerify} disabled={verifying || !cameraActive} className="w-full bg-foreground text-background hover:bg-foreground/90">
               {verifying ? 'Verifying...' : 'Verify My Identity'}
             </Button>
           </div>

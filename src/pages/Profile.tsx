@@ -12,8 +12,8 @@ const Profile = () => {
   if (!user || !profile) {
     return (
       <div className="container py-20 text-center">
-        <p className="text-muted-foreground">Please log in to view your profile.</p>
-        <Button className="mt-4" onClick={() => navigate('/login')}>Sign In</Button>
+        <p className="text-muted-foreground text-sm">Please log in to view your profile.</p>
+        <Button className="mt-4 bg-foreground text-background hover:bg-foreground/90" onClick={() => navigate('/login')}>Sign In</Button>
       </div>
     );
   }
@@ -21,59 +21,45 @@ const Profile = () => {
   const fullName = `${profile.first_name} ${profile.middle_name || ''} ${profile.last_name}`.trim();
 
   return (
-    <div className="container py-8 max-w-2xl">
-      <Card>
+    <div className="container py-8 max-w-lg">
+      <Card className="border">
         <CardHeader>
           <div className="flex items-center gap-4">
-            <div className="h-16 w-16 rounded-full gradient-primary flex items-center justify-center text-primary-foreground text-xl font-bold">
+            <div className="h-14 w-14 rounded-full bg-foreground flex items-center justify-center text-background text-lg font-bold">
               {profile.first_name?.[0]}{profile.last_name?.[0]}
             </div>
             <div className="flex-1">
-              <CardTitle className="text-2xl">{fullName}</CardTitle>
+              <CardTitle className="text-lg">{fullName}</CardTitle>
               <div className="flex items-center gap-2 mt-1">
-                <Badge variant={isVerified ? 'default' : 'secondary'} className="gap-1">
+                <Badge variant={isVerified ? 'default' : 'secondary'} className="gap-1 text-xs">
                   {isVerified ? <ShieldCheck className="h-3 w-3" /> : <Shield className="h-3 w-3" />}
-                  {isVerified ? 'Fully Verified' : profile.status === 'pending' ? 'Pending' : 'Not Verified'}
+                  {isVerified ? 'Verified' : profile.status === 'pending' ? 'Pending' : 'Unverified'}
                 </Badge>
-                {isAdmin && <Badge variant="outline">Admin</Badge>}
+                {isAdmin && <Badge variant="outline" className="text-xs">Admin</Badge>}
               </div>
             </div>
           </div>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="grid gap-3">
-            <div className="flex items-center gap-3 text-sm">
-              <Mail className="h-4 w-4 text-muted-foreground" />
-              <span>{user.email}</span>
-            </div>
-            {profile.mobile_number && (
-              <div className="flex items-center gap-3 text-sm">
-                <Phone className="h-4 w-4 text-muted-foreground" />
-                <span>{profile.mobile_number}</span>
+          <div className="grid gap-2">
+            {[
+              { icon: Mail, text: user.email },
+              profile.mobile_number && { icon: Phone, text: profile.mobile_number },
+              profile.address && { icon: MapPin, text: profile.address },
+              profile.birthday && { icon: Calendar, text: profile.birthday },
+              { icon: User, text: `Member since ${new Date(profile.created_at).toLocaleDateString()}` },
+            ].filter(Boolean).map((item: any, i) => (
+              <div key={i} className="flex items-center gap-3 text-sm">
+                <item.icon className="h-4 w-4 text-muted-foreground" />
+                <span>{item.text}</span>
               </div>
-            )}
-            {profile.address && (
-              <div className="flex items-center gap-3 text-sm">
-                <MapPin className="h-4 w-4 text-muted-foreground" />
-                <span>{profile.address}</span>
-              </div>
-            )}
-            {profile.birthday && (
-              <div className="flex items-center gap-3 text-sm">
-                <Calendar className="h-4 w-4 text-muted-foreground" />
-                <span>{profile.birthday}</span>
-              </div>
-            )}
-            <div className="flex items-center gap-3 text-sm">
-              <User className="h-4 w-4 text-muted-foreground" />
-              <span>Member since {new Date(profile.created_at).toLocaleDateString()}</span>
-            </div>
+            ))}
           </div>
           {!isVerified && (
-            <div className="bg-primary/5 border border-primary/20 rounded-lg p-4">
-              <p className="text-sm font-medium mb-2">Complete your verification</p>
-              <p className="text-xs text-muted-foreground mb-3">Verify your identity to unlock full marketplace access.</p>
-              <Button size="sm" onClick={() => navigate('/verification')}>Start Verification</Button>
+            <div className="border rounded-lg p-4">
+              <p className="text-sm font-medium mb-1">Complete your verification</p>
+              <p className="text-xs text-muted-foreground mb-3">Verify your identity to unlock marketplace access.</p>
+              <Button size="sm" className="bg-foreground text-background hover:bg-foreground/90" onClick={() => navigate('/verification')}>Start Verification</Button>
             </div>
           )}
           <Button variant="outline" className="w-full" onClick={async () => { await signOut(); navigate('/'); }}>

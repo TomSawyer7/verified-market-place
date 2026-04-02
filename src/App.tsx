@@ -13,6 +13,7 @@ import ProductDetail from "./pages/ProductDetail";
 import CreateListing from "./pages/CreateListing";
 import Verification from "./pages/Verification";
 import Profile from "./pages/Profile";
+import Messages from "./pages/Messages";
 import AdminDashboard from "./pages/AdminDashboard";
 import NotFound from "./pages/NotFound";
 
@@ -35,6 +36,7 @@ const App = () => (
             <Route path="/create-listing" element={<CreateListing />} />
             <Route path="/verification" element={<Verification />} />
             <Route path="/profile" element={<Profile />} />
+            <Route path="/messages" element={<Messages />} />
             <Route path="/admin" element={<AdminDashboard />} />
             <Route path="*" element={<NotFound />} />
           </Routes>

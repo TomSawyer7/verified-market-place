@@ -26,10 +26,10 @@ const CreateListing = () => {
   if (!user || !isVerified) {
     return (
       <div className="container py-20 text-center">
-        <Package className="h-16 w-16 text-muted-foreground mx-auto mb-4" />
-        <h2 className="text-2xl font-bold mb-2">Verification Required</h2>
-        <p className="text-muted-foreground mb-4">You must be fully verified to create listings.</p>
-        <Button onClick={() => navigate('/verification')}>Go to Verification</Button>
+        <Package className="h-12 w-12 text-muted-foreground mx-auto mb-3" />
+        <h2 className="text-xl font-bold mb-2">Verification Required</h2>
+        <p className="text-sm text-muted-foreground mb-4">You must be fully verified to create listings.</p>
+        <Button className="bg-foreground text-background hover:bg-foreground/90" onClick={() => navigate('/verification')}>Go to Verification</Button>
       </div>
     );
   }
@@ -69,29 +69,29 @@ const CreateListing = () => {
   };
 
   return (
-    <div className="container py-8 max-w-2xl">
-      <Card>
-        <CardHeader>
-          <CardTitle>Create Listing</CardTitle>
-          <CardDescription>List a product on the verified marketplace</CardDescription>
+    <div className="container py-8 max-w-lg">
+      <Card className="border">
+        <CardHeader className="pb-4">
+          <CardTitle className="text-lg">Create Listing</CardTitle>
+          <CardDescription className="text-xs">List a product on the verified marketplace</CardDescription>
         </CardHeader>
         <CardContent>
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="title">Title</Label>
+          <form onSubmit={handleSubmit} className="space-y-3">
+            <div className="space-y-1.5">
+              <Label htmlFor="title" className="text-xs">Title</Label>
               <Input id="title" placeholder="Product name" value={title} onChange={e => setTitle(e.target.value)} required />
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="description">Description</Label>
-              <Textarea id="description" placeholder="Describe your product..." value={description} onChange={e => setDescription(e.target.value)} rows={4} />
+            <div className="space-y-1.5">
+              <Label htmlFor="description" className="text-xs">Description</Label>
+              <Textarea id="description" placeholder="Describe your product..." value={description} onChange={e => setDescription(e.target.value)} rows={3} />
             </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="price">Price (₱)</Label>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label htmlFor="price" className="text-xs">Price (₱)</Label>
                 <Input id="price" type="number" min="0" step="0.01" placeholder="0.00" value={price} onChange={e => setPrice(e.target.value)} required />
               </div>
-              <div className="space-y-2">
-                <Label>Category</Label>
+              <div className="space-y-1.5">
+                <Label className="text-xs">Category</Label>
                 <Select value={category} onValueChange={setCategory}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
@@ -100,21 +100,21 @@ const CreateListing = () => {
                 </Select>
               </div>
             </div>
-            <div className="space-y-2">
-              <Label>Product Image</Label>
-              <div className="border-2 border-dashed rounded-lg p-6 text-center cursor-pointer hover:border-primary/50 transition-colors" onClick={() => document.getElementById('img-upload')?.click()}>
+            <div className="space-y-1.5">
+              <Label className="text-xs">Product Image</Label>
+              <div className="border-2 border-dashed rounded-lg p-4 text-center cursor-pointer hover:border-foreground/30 transition-colors" onClick={() => document.getElementById('img-upload')?.click()}>
                 {imageFile ? (
-                  <p className="text-sm text-muted-foreground">{imageFile.name}</p>
+                  <p className="text-xs text-muted-foreground">{imageFile.name}</p>
                 ) : (
                   <>
-                    <Upload className="h-8 w-8 text-muted-foreground mx-auto mb-2" />
-                    <p className="text-sm text-muted-foreground">Click to upload image</p>
+                    <Upload className="h-6 w-6 text-muted-foreground mx-auto mb-1" />
+                    <p className="text-xs text-muted-foreground">Click to upload</p>
                   </>
                 )}
                 <input id="img-upload" type="file" accept="image/*" className="hidden" onChange={e => setImageFile(e.target.files?.[0] || null)} />
               </div>
             </div>
-            <Button type="submit" className="w-full" disabled={loading}>
+            <Button type="submit" className="w-full bg-foreground text-background hover:bg-foreground/90" disabled={loading}>
               {loading ? 'Creating...' : 'Create Listing'}
             </Button>
           </form>
