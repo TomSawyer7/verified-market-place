@@ -62,8 +62,8 @@ const Messages = () => {
           productIds.length > 0 ? supabase.from('products').select('id, title, image_url').in('id', productIds) : { data: [] },
         ]);
 
-        const profileMap = new Map(profilesRes.data?.map(p => [p.id, p]) || []);
-        const productMap = new Map(productsRes.data?.map(p => [p.id, p]) || []);
+        const profileMap = new Map((profilesRes.data || []).map(p => [p.id, p] as const));
+        const productMap = new Map((productsRes.data || []).map(p => [p.id, p] as const));
 
         // Get last message and unread count for each conv
         const enriched = await Promise.all(data.map(async (c) => {
