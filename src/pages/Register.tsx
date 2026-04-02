@@ -29,49 +29,49 @@ const Register = () => {
     if (error) {
       toast.error(error.message);
     } else {
-      toast.success('Account created! Please check your email to verify.');
+      toast.success('Account created! Check your email to verify.');
       navigate('/verification');
     }
   };
 
   return (
-    <div className="min-h-[calc(100vh-4rem)] flex items-center justify-center p-4">
-      <Card className="w-full max-w-md">
-        <CardHeader className="text-center">
-          <div className="flex justify-center mb-4">
-            <div className="h-12 w-12 rounded-xl gradient-primary flex items-center justify-center">
-              <ShieldCheck className="h-6 w-6 text-primary-foreground" />
+    <div className="min-h-[calc(100vh-3.5rem)] flex items-center justify-center p-4">
+      <Card className="w-full max-w-sm border">
+        <CardHeader className="text-center pb-4">
+          <div className="flex justify-center mb-3">
+            <div className="h-10 w-10 rounded-md bg-foreground flex items-center justify-center">
+              <ShieldCheck className="h-5 w-5 text-background" />
             </div>
           </div>
-          <CardTitle className="text-2xl">Create account</CardTitle>
-          <CardDescription>Join TrustMart.ph — Verified P2P Marketplace</CardDescription>
+          <CardTitle className="text-xl">Create account</CardTitle>
+          <CardDescription className="text-xs">Join TrustMart — Verified P2P Marketplace</CardDescription>
         </CardHeader>
         <CardContent>
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-2">
-                <Label htmlFor="firstName">First Name</Label>
+          <form onSubmit={handleSubmit} className="space-y-3">
+            <div className="grid grid-cols-2 gap-2">
+              <div className="space-y-1.5">
+                <Label htmlFor="firstName" className="text-xs">First Name</Label>
                 <Input id="firstName" placeholder="Juan" value={firstName} onChange={e => setFirstName(e.target.value)} required />
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="lastName">Last Name</Label>
+              <div className="space-y-1.5">
+                <Label htmlFor="lastName" className="text-xs">Last Name</Label>
                 <Input id="lastName" placeholder="Dela Cruz" value={lastName} onChange={e => setLastName(e.target.value)} required />
               </div>
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
+            <div className="space-y-1.5">
+              <Label htmlFor="email" className="text-xs">Email</Label>
               <Input id="email" type="email" placeholder="you@example.com" value={email} onChange={e => setEmail(e.target.value)} required />
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="password">Password</Label>
+            <div className="space-y-1.5">
+              <Label htmlFor="password" className="text-xs">Password</Label>
               <Input id="password" type="password" placeholder="Minimum 6 characters" value={password} onChange={e => setPassword(e.target.value)} required minLength={6} />
             </div>
-            <Button type="submit" className="w-full" disabled={loading}>
+            <Button type="submit" className="w-full bg-foreground text-background hover:bg-foreground/90" disabled={loading}>
               {loading ? 'Creating account...' : 'Create account'}
             </Button>
           </form>
-          <p className="text-center text-sm text-muted-foreground mt-4">
-            Already have an account? <Link to="/login" className="text-primary font-medium hover:underline">Sign in</Link>
+          <p className="text-center text-xs text-muted-foreground mt-4">
+            Already have an account? <Link to="/login" className="font-medium underline underline-offset-2 text-foreground">Sign in</Link>
           </p>
         </CardContent>
       </Card>
