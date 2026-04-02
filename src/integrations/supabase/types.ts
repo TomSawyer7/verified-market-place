@@ -68,6 +68,109 @@ export type Database = {
         }
         Relationships: []
       }
+      conversations: {
+        Row: {
+          buyer_id: string
+          created_at: string | null
+          id: string
+          last_message_at: string | null
+          product_id: string | null
+          seller_id: string
+        }
+        Insert: {
+          buyer_id: string
+          created_at?: string | null
+          id?: string
+          last_message_at?: string | null
+          product_id?: string | null
+          seller_id: string
+        }
+        Update: {
+          buyer_id?: string
+          created_at?: string | null
+          id?: string
+          last_message_at?: string | null
+          product_id?: string | null
+          seller_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "conversations_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      messages: {
+        Row: {
+          content: string
+          conversation_id: string
+          created_at: string | null
+          id: string
+          read: boolean | null
+          sender_id: string
+        }
+        Insert: {
+          content: string
+          conversation_id: string
+          created_at?: string | null
+          id?: string
+          read?: boolean | null
+          sender_id: string
+        }
+        Update: {
+          content?: string
+          conversation_id?: string
+          created_at?: string | null
+          id?: string
+          read?: boolean | null
+          sender_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "messages_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "conversations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      notifications: {
+        Row: {
+          body: string | null
+          created_at: string | null
+          id: string
+          link: string | null
+          read: boolean | null
+          title: string
+          type: string
+          user_id: string
+        }
+        Insert: {
+          body?: string | null
+          created_at?: string | null
+          id?: string
+          link?: string | null
+          read?: boolean | null
+          title: string
+          type?: string
+          user_id: string
+        }
+        Update: {
+          body?: string | null
+          created_at?: string | null
+          id?: string
+          link?: string | null
+          read?: boolean | null
+          title?: string
+          type?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       products: {
         Row: {
           category: string | null
