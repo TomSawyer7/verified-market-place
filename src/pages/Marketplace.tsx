@@ -126,6 +126,13 @@ const Marketplace = () => {
             ))}
           </div>
         )}
+
+        {/* Recommendations when products exist */}
+        {products.length > 0 && (
+          <div className="mt-12 border-t pt-8">
+            <ProductRecommendations title="Trending Products" limit={4} />
+          </div>
+        )}
       </div>
     </div>
   );
