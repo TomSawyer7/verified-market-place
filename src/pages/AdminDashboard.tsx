@@ -8,7 +8,11 @@ import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
-import { ShieldCheck, ShieldAlert, Users, CheckCircle, XCircle, Clock, ChevronDown, Eye, UserPlus } from 'lucide-react';
+import {
+  ShieldCheck, ShieldAlert, Users, CheckCircle, XCircle, Clock,
+  ChevronDown, Eye, UserPlus, Shield, AlertTriangle, Activity,
+  Lock, Fingerprint, FileWarning, Globe
+} from 'lucide-react';
 import { toast } from 'sonner';
 
 interface VerificationRow {
@@ -30,12 +34,33 @@ interface VerificationRow {
   profile?: { first_name: string; last_name: string; status: string } | null;
 }
 
+interface SecurityEvent {
+  id: string;
+  user_id: string | null;
+  event_type: string;
+  severity: string;
+  description: string;
+  user_agent: string | null;
+  metadata: any;
+  created_at: string;
+}
+
+interface LoginAttempt {
+  id: string;
+  email: string;
+  success: boolean;
+  user_agent: string | null;
+  created_at: string;
+}
+
 const AdminDashboard = () => {
   const { isAdmin, user } = useAuth();
   const navigate = useNavigate();
   const [verifications, setVerifications] = useState<VerificationRow[]>([]);
+  const [securityEvents, setSecurityEvents] = useState<SecurityEvent[]>([]);
+  const [loginAttempts, setLoginAttempts] = useState<LoginAttempt[]>([]);
   const [loading, setLoading] = useState(true);
-  const [stats, setStats] = useState({ total: 0, pending: 0, verified: 0 });
+  const [stats, setStats] = useState({ total: 0, pending: 0, verified: 0, secEvents: 0, failedLogins: 0 });
   const [adminEmail, setAdminEmail] = useState('');
   const [promoting, setPromoting] = useState(false);
 
@@ -45,18 +70,28 @@ const AdminDashboard = () => {
   }, [isAdmin, navigate]);
 
   const fetchData = async () => {
-    const { data: vData } = await supabase.from('verifications').select('*');
-    if (vData) {
-      const { data: profiles } = await supabase.from('profiles').select('id, first_name, last_name, status');
-      const profileMap = new Map((profiles || []).map(p => [p.id, p] as const));
-      const enriched = vData.map(v => ({ ...v, profile: profileMap.get(v.user_id) || null })) as VerificationRow[];
-      setVerifications(enriched);
-      setStats({
-        total: enriched.length,
-        pending: enriched.filter(v => v.philsys_status === 'pending' || v.biometric_status === 'pending').length,
-        verified: enriched.filter(v => v.philsys_status === 'verified' && v.biometric_status === 'verified').length,
-      });
-    }
+    const [vRes, seRes, laRes] = await Promise.all([
+      supabase.from('verifications').select('*'),
+      supabase.from('security_events').select('*').order('created_at', { ascending: false }).limit(50),
+      supabase.from('login_attempts').select('*').order('created_at', { ascending: false }).limit(100),
+    ]);
+
+    const vData = vRes.data || [];
+    const { data: profiles } = await supabase.from('profiles').select('id, first_name, last_name, status');
+    const profileMap = new Map((profiles || []).map(p => [p.id, p] as const));
+    const enriched = vData.map(v => ({ ...v, profile: profileMap.get(v.user_id) || null })) as VerificationRow[];
+    setVerifications(enriched);
+    setSecurityEvents((seRes.data || []) as SecurityEvent[]);
+    setLoginAttempts((laRes.data || []) as LoginAttempt[]);
+
+    const failedLogins = (laRes.data || []).filter((a: any) => !a.success).length;
+    setStats({
+      total: enriched.length,
+      pending: enriched.filter(v => v.philsys_status === 'pending' || v.biometric_status === 'pending').length,
+      verified: enriched.filter(v => v.philsys_status === 'verified' && v.biometric_status === 'verified').length,
+      secEvents: (seRes.data || []).filter((e: any) => e.severity === 'warning' || e.severity === 'critical').length,
+      failedLogins,
+    });
     setLoading(false);
   };
 
@@ -80,7 +115,6 @@ const AdminDashboard = () => {
         reason: `Admin ${action} ${field.replace('_status', '')} verification`,
       });
 
-      // Send notification to user
       await supabase.from('notifications').insert({
         user_id: userId,
         type: 'verification',
@@ -120,20 +154,37 @@ const AdminDashboard = () => {
   const pendingPhilsys = verifications.filter(v => v.philsys_status === 'pending' && v.screenshot_url);
   const pendingBiometric = verifications.filter(v => v.biometric_status === 'pending' && v.selfie_url && v.philsys_status === 'verified');
 
+  const severityColor = (s: string) => {
+    if (s === 'critical') return 'text-red-600 bg-red-50';
+    if (s === 'warning') return 'text-orange-600 bg-orange-50';
+    return 'text-muted-foreground bg-muted/50';
+  };
+
+  const severityIcon = (s: string) => {
+    if (s === 'critical') return <AlertTriangle className="h-3.5 w-3.5" />;
+    if (s === 'warning') return <ShieldAlert className="h-3.5 w-3.5" />;
+    return <Activity className="h-3.5 w-3.5" />;
+  };
+
   if (loading) return <div className="container py-8"><div className="animate-pulse h-64 bg-muted rounded" /></div>;
 
   return (
     <div className="container py-8">
       <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-bold">Admin Dashboard</h1>
+        <div>
+          <h1 className="text-2xl font-bold">Admin Dashboard</h1>
+          <p className="text-xs text-muted-foreground mt-0.5">Security monitoring & verification management</p>
+        </div>
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-3 gap-3 mb-6">
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-6">
         {[
           { label: 'Total Users', value: stats.total, icon: Users },
           { label: 'Pending', value: stats.pending, icon: Clock },
           { label: 'Verified', value: stats.verified, icon: ShieldCheck },
+          { label: 'Security Alerts', value: stats.secEvents, icon: ShieldAlert },
+          { label: 'Failed Logins', value: stats.failedLogins, icon: Lock },
         ].map((s, i) => (
           <Card key={i} className="border">
             <CardContent className="p-4 flex items-center gap-3">
@@ -163,15 +214,22 @@ const AdminDashboard = () => {
       </Card>
 
       <Tabs defaultValue="philsys">
-        <TabsList>
+        <TabsList className="flex-wrap">
           <TabsTrigger value="philsys" className="gap-1 text-xs">
             <ShieldAlert className="h-3 w-3" /> PhilSys ({pendingPhilsys.length})
           </TabsTrigger>
           <TabsTrigger value="biometric" className="gap-1 text-xs">
-            <ShieldCheck className="h-3 w-3" /> Biometric ({pendingBiometric.length})
+            <Fingerprint className="h-3 w-3" /> Biometric ({pendingBiometric.length})
+          </TabsTrigger>
+          <TabsTrigger value="security" className="gap-1 text-xs">
+            <Shield className="h-3 w-3" /> Security Log
+          </TabsTrigger>
+          <TabsTrigger value="logins" className="gap-1 text-xs">
+            <Lock className="h-3 w-3" /> Login Attempts
           </TabsTrigger>
         </TabsList>
 
+        {/* PhilSys Tab */}
         <TabsContent value="philsys" className="space-y-3 mt-4">
           {pendingPhilsys.length === 0 ? (
             <p className="text-center py-8 text-sm text-muted-foreground">No pending PhilSys reviews</p>
@@ -196,8 +254,8 @@ const AdminDashboard = () => {
                         <p className="text-lg font-bold">{v.screenshot_score?.toFixed(1)}%</p>
                       </div>
                       <div>
-                        <p className="text-muted-foreground">Risk</p>
-                        <p className={`text-lg font-bold ${v.screenshot_score >= 60 ? 'text-green-700' : 'text-red-600'}`}>
+                        <p className="text-muted-foreground">Risk Level</p>
+                        <p className={`text-lg font-bold ${v.screenshot_score >= 60 ? 'text-green-700' : 'text-destructive'}`}>
                           {v.screenshot_score >= 60 ? 'LOW' : 'HIGH'}
                         </p>
                       </div>
@@ -217,6 +275,7 @@ const AdminDashboard = () => {
           ))}
         </TabsContent>
 
+        {/* Biometric Tab */}
         <TabsContent value="biometric" className="space-y-3 mt-4">
           {pendingBiometric.length === 0 ? (
             <p className="text-center py-8 text-sm text-muted-foreground">No pending biometric reviews</p>
@@ -242,13 +301,13 @@ const AdminDashboard = () => {
                       </div>
                       <div>
                         <p className="text-muted-foreground">Liveness</p>
-                        <p className={`text-lg font-bold ${v.liveness_result ? 'text-green-700' : 'text-red-600'}`}>
+                        <p className={`text-lg font-bold ${v.liveness_result ? 'text-green-700' : 'text-destructive'}`}>
                           {v.liveness_result ? 'PASS' : 'FAIL'}
                         </p>
                       </div>
                       <div>
                         <p className="text-muted-foreground">Anti-Spoof</p>
-                        <p className={`text-lg font-bold ${v.anti_spoof_passed ? 'text-green-700' : 'text-red-600'}`}>
+                        <p className={`text-lg font-bold ${v.anti_spoof_passed ? 'text-green-700' : 'text-destructive'}`}>
                           {v.anti_spoof_passed ? 'PASS' : 'FLAG'}
                         </p>
                       </div>
@@ -267,7 +326,109 @@ const AdminDashboard = () => {
             </Card>
           ))}
         </TabsContent>
+
+        {/* Security Events Tab */}
+        <TabsContent value="security" className="space-y-3 mt-4">
+          {securityEvents.length === 0 ? (
+            <p className="text-center py-8 text-sm text-muted-foreground">No security events recorded</p>
+          ) : (
+            <div className="space-y-2">
+              {securityEvents.map(ev => (
+                <Card key={ev.id} className="border">
+                  <CardContent className="p-3 flex items-start gap-3">
+                    <div className={`p-1.5 rounded ${severityColor(ev.severity)}`}>
+                      {severityIcon(ev.severity)}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between">
+                        <p className="text-sm font-medium">{ev.event_type.replace(/_/g, ' ').toUpperCase()}</p>
+                        <Badge variant={ev.severity === 'critical' ? 'destructive' : 'secondary'} className="text-[10px]">
+                          {ev.severity}
+                        </Badge>
+                      </div>
+                      <p className="text-xs text-muted-foreground mt-0.5">{ev.description}</p>
+                      <div className="flex items-center gap-3 mt-1 text-[11px] text-muted-foreground">
+                        <span>{new Date(ev.created_at).toLocaleString()}</span>
+                        {ev.user_agent && (
+                          <span className="flex items-center gap-1">
+                            <Globe className="h-3 w-3" />
+                            {ev.user_agent.substring(0, 40)}...
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          )}
+        </TabsContent>
+
+        {/* Login Attempts Tab */}
+        <TabsContent value="logins" className="mt-4">
+          {loginAttempts.length === 0 ? (
+            <p className="text-center py-8 text-sm text-muted-foreground">No login attempts recorded</p>
+          ) : (
+            <div className="border rounded-lg overflow-hidden">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="bg-muted/50 text-left">
+                    <th className="p-3 text-xs font-medium text-muted-foreground">Email</th>
+                    <th className="p-3 text-xs font-medium text-muted-foreground">Status</th>
+                    <th className="p-3 text-xs font-medium text-muted-foreground">Time</th>
+                    <th className="p-3 text-xs font-medium text-muted-foreground hidden md:table-cell">User Agent</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {loginAttempts.map(la => (
+                    <tr key={la.id} className="border-t">
+                      <td className="p-3 text-xs font-mono">{la.email}</td>
+                      <td className="p-3">
+                        <Badge variant={la.success ? 'default' : 'destructive'} className="text-[10px]">
+                          {la.success ? 'Success' : 'Failed'}
+                        </Badge>
+                      </td>
+                      <td className="p-3 text-xs text-muted-foreground">{new Date(la.created_at).toLocaleString()}</td>
+                      <td className="p-3 text-[11px] text-muted-foreground truncate max-w-[200px] hidden md:table-cell">
+                        {la.user_agent?.substring(0, 60)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </TabsContent>
       </Tabs>
+
+      {/* Security Features Summary */}
+      <Card className="mt-8 border">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-sm flex items-center gap-2">
+            <Shield className="h-4 w-4" /> Active Security Features
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            {[
+              { icon: Fingerprint, label: 'Biometric Liveness', desc: 'face-api.js real-time detection' },
+              { icon: ShieldCheck, label: 'PhilSys ID Verify', desc: 'Anti-tampering screenshot analysis' },
+              { icon: Lock, label: 'Brute Force Protection', desc: 'Rate limiting & account lockout' },
+              { icon: FileWarning, label: 'HIBP Breach Check', desc: 'Leaked password detection' },
+              { icon: Eye, label: 'Face Re-Auth', desc: 'Mandatory for transactions' },
+              { icon: Shield, label: 'Row-Level Security', desc: 'PostgreSQL RLS on all tables' },
+              { icon: Activity, label: 'Audit Trail', desc: 'Full event logging' },
+              { icon: Globe, label: 'Session Monitoring', desc: 'Device & activity tracking' },
+            ].map((f, i) => (
+              <div key={i} className="p-3 rounded-lg bg-muted/50 border">
+                <f.icon className="h-4 w-4 mb-2" />
+                <p className="text-xs font-medium">{f.label}</p>
+                <p className="text-[11px] text-muted-foreground">{f.desc}</p>
+              </div>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 };
