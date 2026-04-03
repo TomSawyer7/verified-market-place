@@ -106,6 +106,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const signOut = async () => {
+    if (user) {
+      try {
+        await supabase.from('session_logs').insert({ user_id: user.id, action: 'logout', user_agent: navigator.userAgent });
+        await supabase.from('security_events').insert({ user_id: user.id, event_type: 'logout', severity: 'info', description: 'User logged out', user_agent: navigator.userAgent });
+      } catch {}
+    }
     await supabase.auth.signOut();
     setUser(null);
     setSession(null);
