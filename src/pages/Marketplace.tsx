@@ -4,7 +4,8 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Link } from 'react-router-dom';
-import { Search, ShieldCheck, Package } from 'lucide-react';
+import { Search, ShieldCheck, Package, Star } from 'lucide-react';
+import ProductRecommendations from '@/components/ProductRecommendations';
 
 interface Product {
   id: string;

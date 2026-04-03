@@ -29,8 +29,8 @@ const Register = () => {
     if (error) {
       toast.error(error.message);
     } else {
-      toast.success('Account created! Check your email to verify.');
-      navigate('/verification');
+      toast.success('Account created! You can now sign in.');
+      navigate('/login');
     }
   };
 
