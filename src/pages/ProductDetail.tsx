@@ -9,6 +9,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { ShieldCheck, MessageCircle, ShoppingCart, Camera, AlertTriangle, Package } from 'lucide-react';
 import { toast } from 'sonner';
 import * as faceapi from 'face-api.js';
+import SellerReviews, { SellerRatingBadge } from '@/components/SellerReviews';
+import ProductRecommendations from '@/components/ProductRecommendations';
 
 const ProductDetail = () => {
   const { id } = useParams();
@@ -74,7 +76,6 @@ const ProductDetail = () => {
 
   const startOrOpenChat = async () => {
     if (!user || !product) return;
-    // Find or create conversation
     const { data: existing } = await supabase
       .from('conversations')
       .select('id')
@@ -93,7 +94,6 @@ const ProductDetail = () => {
       }).select('id').single();
 
       if (newConv) {
-        // Notify seller
         await supabase.from('notifications').insert({
           user_id: product.user_id,
           type: 'message',
@@ -165,7 +165,7 @@ const ProductDetail = () => {
   }
 
   return (
-    <div className="container py-8">
+    <div className="container py-8 space-y-10">
       <div className="grid lg:grid-cols-2 gap-8">
         <div className="aspect-square bg-muted rounded-lg overflow-hidden">
           {product.image_url ? (
@@ -193,11 +193,14 @@ const ProductDetail = () => {
               </div>
               <div className="flex-1">
                 <p className="font-medium text-sm">{seller?.first_name} {seller?.last_name}</p>
-                {seller?.status === 'verified' && (
-                  <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                    <ShieldCheck className="h-3 w-3" /> Verified Seller
-                  </div>
-                )}
+                <div className="flex items-center gap-2">
+                  {seller?.status === 'verified' && (
+                    <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                      <ShieldCheck className="h-3 w-3" /> Verified
+                    </div>
+                  )}
+                  <SellerRatingBadge sellerId={product.user_id} />
+                </div>
               </div>
             </CardContent>
           </Card>
@@ -216,6 +219,16 @@ const ProductDetail = () => {
             <span>Face ID re-authentication required for all transactions.</span>
           </div>
         </div>
+      </div>
+
+      {/* Reviews Section */}
+      <div className="border-t pt-8">
+        <SellerReviews sellerId={product.user_id} productId={product.id} />
+      </div>
+
+      {/* Recommendations */}
+      <div className="border-t pt-8">
+        <ProductRecommendations currentProductId={product.id} category={product.category} sellerId={product.user_id} />
       </div>
 
       <Dialog open={faceAuthOpen} onOpenChange={setFaceAuthOpen}>

@@ -4,7 +4,8 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Link } from 'react-router-dom';
-import { Search, ShieldCheck, Package } from 'lucide-react';
+import { Search, ShieldCheck, Package, Star } from 'lucide-react';
+import ProductRecommendations from '@/components/ProductRecommendations';
 
 interface Product {
   id: string;
@@ -123,6 +124,13 @@ const Marketplace = () => {
                 </Card>
               </Link>
             ))}
+          </div>
+        )}
+
+        {/* Recommendations when products exist */}
+        {products.length > 0 && (
+          <div className="mt-12 border-t pt-8">
+            <ProductRecommendations title="Trending Products" limit={4} />
           </div>
         )}
       </div>
