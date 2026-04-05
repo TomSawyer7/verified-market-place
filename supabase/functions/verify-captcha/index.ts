@@ -1,4 +1,7 @@
-import { corsHeaders } from '@supabase/supabase-js/cors'
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+};
 
 const HCAPTCHA_SECRET = Deno.env.get('HCAPTCHA_SECRET_KEY') || '0x0000000000000000000000000000000000000000';
 
