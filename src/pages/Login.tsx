@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
@@ -10,6 +10,7 @@ import { ShieldCheck, AlertTriangle, Lock, Eye, EyeOff, Mail } from 'lucide-reac
 import { toast } from 'sonner';
 import { checkRateLimit, resetRateLimit, logSecurityEvent, logSessionActivity } from '@/lib/security';
 import { supabase } from '@/integrations/supabase/client';
+import { HCaptcha, resetHCaptcha } from '@/components/HCaptcha';
 
 const Login = () => {
   const [email, setEmail] = useState('');
@@ -20,6 +21,8 @@ const Login = () => {
   const [locked, setLocked] = useState(false);
   const [lockTimer, setLockTimer] = useState(0);
   const [failedAttempts, setFailedAttempts] = useState(0);
+  const [captchaToken, setCaptchaToken] = useState<string | null>(null);
+  const [showCaptcha, setShowCaptcha] = useState(false);
   const { signIn } = useAuth();
   const navigate = useNavigate();
 
@@ -37,6 +40,30 @@ const Login = () => {
     return () => clearInterval(interval);
   }, [lockTimer]);
 
+  // Show CAPTCHA after 2 failed attempts
+  useEffect(() => {
+    if (failedAttempts >= 2) setShowCaptcha(true);
+  }, [failedAttempts]);
+
+  const handleCaptchaVerify = useCallback((token: string) => {
+    setCaptchaToken(token);
+  }, []);
+
+  const handleCaptchaExpire = useCallback(() => {
+    setCaptchaToken(null);
+  }, []);
+
+  const verifyCaptchaServer = async (token: string): Promise<boolean> => {
+    try {
+      const { data, error } = await supabase.functions.invoke('verify-captcha', {
+        body: { token },
+      });
+      return !error && data?.success === true;
+    } catch {
+      return false;
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -48,6 +75,21 @@ const Login = () => {
       return;
     }
 
+    // Verify CAPTCHA server-side if shown
+    if (showCaptcha) {
+      if (!captchaToken) {
+        toast.error('Please complete the CAPTCHA verification.');
+        return;
+      }
+      const captchaValid = await verifyCaptchaServer(captchaToken);
+      if (!captchaValid) {
+        toast.error('CAPTCHA verification failed. Please try again.');
+        resetHCaptcha();
+        setCaptchaToken(null);
+        return;
+      }
+    }
+
     setLoading(true);
     const { error } = await signIn(email, password);
     setLoading(false);
@@ -55,6 +97,8 @@ const Login = () => {
     if (error) {
       const attempts = failedAttempts + 1;
       setFailedAttempts(attempts);
+      resetHCaptcha();
+      setCaptchaToken(null);
 
       try {
         await supabase.from('login_attempts').insert({
@@ -64,7 +108,6 @@ const Login = () => {
         });
       } catch {}
 
-      // Detect unverified email
       if (error.message?.toLowerCase().includes('email not confirmed')) {
         toast.error('Please verify your email before signing in. Check your inbox for a confirmation link.');
       } else if (attempts >= 3) {
@@ -73,7 +116,6 @@ const Login = () => {
         toast.error('Invalid credentials. Please check your email and password.');
       }
     } else {
-      // Remember me
       if (rememberMe) {
         localStorage.setItem('trustmart_remember_email', email);
       } else {
@@ -93,6 +135,8 @@ const Login = () => {
       navigate('/marketplace');
     }
   };
+
+  const canSubmit = email && password && !loading && !locked && (!showCaptcha || !!captchaToken);
 
   return (
     <div className="min-h-[calc(100vh-3.5rem)] flex items-center justify-center p-4">
@@ -145,13 +189,18 @@ const Login = () => {
               <Checkbox id="remember" checked={rememberMe} onCheckedChange={(c) => setRememberMe(!!c)} aria-label="Remember me" />
               <Label htmlFor="remember" className="text-xs text-muted-foreground cursor-pointer">Remember me</Label>
             </div>
-            <Button type="submit" className="w-full bg-foreground text-background hover:bg-foreground/90" disabled={loading || locked || !email || !password}>
+            {showCaptcha && (
+              <div className="py-1">
+                <HCaptcha onVerify={handleCaptchaVerify} onExpire={handleCaptchaExpire} />
+              </div>
+            )}
+            <Button type="submit" className="w-full bg-foreground text-background hover:bg-foreground/90" disabled={!canSubmit}>
               {loading ? 'Signing in...' : locked ? 'Locked' : 'Sign in'}
             </Button>
           </form>
           <div className="flex items-center gap-1.5 mt-4 p-2.5 rounded-lg bg-muted/50 text-[11px] text-muted-foreground">
             <Lock className="h-3 w-3 flex-shrink-0" />
-            <span>Protected by rate limiting, breach detection, and session monitoring.</span>
+            <span>Protected by rate limiting, CAPTCHA, breach detection, and session monitoring.</span>
           </div>
           <p className="text-center text-xs text-muted-foreground mt-3">
             No account? <Link to="/register" className="font-medium underline underline-offset-2 text-foreground">Create one</Link>
