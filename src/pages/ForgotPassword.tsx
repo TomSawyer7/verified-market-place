@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -7,49 +7,15 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { ShieldCheck, ArrowLeft, Mail, CheckCircle } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
-import { HCaptcha, resetHCaptcha } from '@/components/HCaptcha';
 
 const ForgotPassword = () => {
   const [email, setEmail] = useState('');
   const [loading, setLoading] = useState(false);
   const [sent, setSent] = useState(false);
-  const [captchaToken, setCaptchaToken] = useState<string | null>(null);
-
-  const handleCaptchaVerify = useCallback((token: string) => {
-    setCaptchaToken(token);
-  }, []);
-
-  const handleCaptchaExpire = useCallback(() => {
-    setCaptchaToken(null);
-  }, []);
-
-  const verifyCaptchaServer = async (token: string): Promise<boolean> => {
-    try {
-      const { data, error } = await supabase.functions.invoke('verify-captcha', {
-        body: { token },
-      });
-      return !error && data?.success === true;
-    } catch {
-      return false;
-    }
-  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!email.trim()) return;
-
-    if (!captchaToken) {
-      toast.error('Please complete the CAPTCHA verification.');
-      return;
-    }
-
-    const captchaValid = await verifyCaptchaServer(captchaToken);
-    if (!captchaValid) {
-      toast.error('CAPTCHA verification failed. Please try again.');
-      resetHCaptcha();
-      setCaptchaToken(null);
-      return;
-    }
 
     setLoading(true);
     await supabase.auth.resetPasswordForEmail(email.trim(), {
@@ -76,7 +42,7 @@ const ForgotPassword = () => {
             </p>
             <p className="text-xs text-muted-foreground">
               Didn't receive it? Check your spam folder or{' '}
-              <button onClick={() => { setSent(false); resetHCaptcha(); setCaptchaToken(null); }} className="underline font-medium text-foreground">try again</button>.
+              <button onClick={() => setSent(false)} className="underline font-medium text-foreground">try again</button>.
             </p>
             <Link to="/login">
               <Button variant="outline" className="w-full mt-2">
@@ -120,10 +86,7 @@ const ForgotPassword = () => {
               </div>
               <p id="email-help" className="text-[11px] text-muted-foreground">We'll send a secure reset link to this address.</p>
             </div>
-            <div className="py-1">
-              <HCaptcha onVerify={handleCaptchaVerify} onExpire={handleCaptchaExpire} />
-            </div>
-            <Button type="submit" className="w-full bg-foreground text-background hover:bg-foreground/90" disabled={loading || !email.trim() || !captchaToken}>
+            <Button type="submit" className="w-full bg-foreground text-background hover:bg-foreground/90" disabled={loading || !email.trim()}>
               {loading ? 'Sending...' : 'Send reset link'}
             </Button>
           </form>
