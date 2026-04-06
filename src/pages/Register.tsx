@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
@@ -10,7 +10,6 @@ import { toast } from 'sonner';
 import { PasswordStrengthMeter } from '@/components/PasswordStrengthMeter';
 import { checkPasswordStrength, sanitizeInput } from '@/lib/security';
 import { supabase } from '@/integrations/supabase/client';
-import { HCaptcha, resetHCaptcha } from '@/components/HCaptcha';
 
 const Register = () => {
   const [firstName, setFirstName] = useState('');
@@ -22,7 +21,6 @@ const Register = () => {
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
   const [touched, setTouched] = useState<Record<string, boolean>>({});
-  const [captchaToken, setCaptchaToken] = useState<string | null>(null);
   const { signUp } = useAuth();
   const navigate = useNavigate();
 
@@ -40,26 +38,7 @@ const Register = () => {
     { label: 'One special character', met: /[^a-zA-Z0-9]/.test(password) },
   ], [password]);
 
-  const allValid = firstName.trim() && lastName.trim() && emailValid && strength.score >= 4 && passwordsMatch && password.length >= 8 && !!captchaToken;
-
-  const handleCaptchaVerify = useCallback((token: string) => {
-    setCaptchaToken(token);
-  }, []);
-
-  const handleCaptchaExpire = useCallback(() => {
-    setCaptchaToken(null);
-  }, []);
-
-  const verifyCaptchaServer = async (token: string): Promise<boolean> => {
-    try {
-      const { data, error } = await supabase.functions.invoke('verify-captcha', {
-        body: { token },
-      });
-      return !error && data?.success === true;
-    } catch {
-      return false;
-    }
-  };
+  const allValid = firstName.trim() && lastName.trim() && emailValid && strength.score >= 4 && passwordsMatch && password.length >= 8;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -87,27 +66,11 @@ const Register = () => {
       return;
     }
 
-    if (!captchaToken) {
-      toast.error('Please complete the CAPTCHA verification.');
-      return;
-    }
-
-    // Verify CAPTCHA server-side
-    const captchaValid = await verifyCaptchaServer(captchaToken);
-    if (!captchaValid) {
-      toast.error('CAPTCHA verification failed. Please try again.');
-      resetHCaptcha();
-      setCaptchaToken(null);
-      return;
-    }
-
     setLoading(true);
     const { error } = await signUp(email, password, { first_name: sanitizedFirst, last_name: sanitizedLast });
     setLoading(false);
 
     if (error) {
-      resetHCaptcha();
-      setCaptchaToken(null);
       if (error.message?.toLowerCase().includes('already registered')) {
         toast.error('An account with this email already exists.');
       } else {
@@ -233,16 +196,13 @@ const Register = () => {
                 <p className="text-[11px] text-green-600 flex items-center gap-1"><CheckCircle className="h-3 w-3" /> Passwords match</p>
               )}
             </div>
-            <div className="py-1">
-              <HCaptcha onVerify={handleCaptchaVerify} onExpire={handleCaptchaExpire} />
-            </div>
             <Button type="submit" className="w-full bg-foreground text-background hover:bg-foreground/90" disabled={loading || !allValid}>
               {loading ? 'Creating account...' : 'Create account'}
             </Button>
           </form>
           <div className="flex items-center gap-1.5 mt-4 p-2.5 rounded-lg bg-muted/50 text-[11px] text-muted-foreground">
             <Lock className="h-3 w-3 flex-shrink-0" />
-            <span>Protected by CAPTCHA, breach detection (HIBP), and encrypted storage.</span>
+            <span>Protected by breach detection (HIBP) and encrypted storage.</span>
           </div>
           <p className="text-center text-xs text-muted-foreground mt-3">
             Already have an account? <Link to="/login" className="font-medium underline underline-offset-2 text-foreground">Sign in</Link>
