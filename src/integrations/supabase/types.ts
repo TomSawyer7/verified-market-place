@@ -400,6 +400,7 @@ export type Database = {
       }
       verifications: {
         Row: {
+          admin_reject_reason: string | null
           anti_spoof_passed: boolean | null
           anti_spoof_reasons: string[] | null
           biometric_status: Database["public"]["Enums"]["user_status"]
@@ -409,7 +410,15 @@ export type Database = {
           face_match_score: number | null
           id: string
           id_back_url: string | null
+          id_blood_type: string | null
+          id_date_of_birth: string | null
+          id_first_name: string | null
           id_front_url: string | null
+          id_last_name: string | null
+          id_marital_status: string | null
+          id_middle_name: string | null
+          id_place_of_birth: string | null
+          id_sex: string | null
           liveness_result: boolean | null
           ocr_name: string | null
           philsys_status: Database["public"]["Enums"]["user_status"]
@@ -423,6 +432,7 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          admin_reject_reason?: string | null
           anti_spoof_passed?: boolean | null
           anti_spoof_reasons?: string[] | null
           biometric_status?: Database["public"]["Enums"]["user_status"]
@@ -432,7 +442,15 @@ export type Database = {
           face_match_score?: number | null
           id?: string
           id_back_url?: string | null
+          id_blood_type?: string | null
+          id_date_of_birth?: string | null
+          id_first_name?: string | null
           id_front_url?: string | null
+          id_last_name?: string | null
+          id_marital_status?: string | null
+          id_middle_name?: string | null
+          id_place_of_birth?: string | null
+          id_sex?: string | null
           liveness_result?: boolean | null
           ocr_name?: string | null
           philsys_status?: Database["public"]["Enums"]["user_status"]
@@ -446,6 +464,7 @@ export type Database = {
           user_id: string
         }
         Update: {
+          admin_reject_reason?: string | null
           anti_spoof_passed?: boolean | null
           anti_spoof_reasons?: string[] | null
           biometric_status?: Database["public"]["Enums"]["user_status"]
@@ -455,7 +474,15 @@ export type Database = {
           face_match_score?: number | null
           id?: string
           id_back_url?: string | null
+          id_blood_type?: string | null
+          id_date_of_birth?: string | null
+          id_first_name?: string | null
           id_front_url?: string | null
+          id_last_name?: string | null
+          id_marital_status?: string | null
+          id_middle_name?: string | null
+          id_place_of_birth?: string | null
+          id_sex?: string | null
           liveness_result?: boolean | null
           ocr_name?: string | null
           philsys_status?: Database["public"]["Enums"]["user_status"]
