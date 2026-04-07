@@ -4,8 +4,9 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Link } from 'react-router-dom';
-import { Search, ShieldCheck, Package, Star } from 'lucide-react';
+import { Search, ShieldCheck, Package } from 'lucide-react';
 import ProductRecommendations from '@/components/ProductRecommendations';
+import VerificationGate from '@/components/VerificationGate';
 
 interface Product {
   id: string;
@@ -20,7 +21,7 @@ interface Product {
   seller_verified?: boolean;
 }
 
-const Marketplace = () => {
+const MarketplaceContent = () => {
   const [products, setProducts] = useState<Product[]>([]);
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
@@ -127,7 +128,6 @@ const Marketplace = () => {
           </div>
         )}
 
-        {/* Recommendations when products exist */}
         {products.length > 0 && (
           <div className="mt-12 border-t pt-8">
             <ProductRecommendations title="Trending Products" limit={4} />
@@ -137,5 +137,11 @@ const Marketplace = () => {
     </div>
   );
 };
+
+const Marketplace = () => (
+  <VerificationGate>
+    <MarketplaceContent />
+  </VerificationGate>
+);
 
 export default Marketplace;
