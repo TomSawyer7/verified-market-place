@@ -6,12 +6,15 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import {
   ShieldCheck, ShieldAlert, Users, CheckCircle, XCircle, Clock,
   ChevronDown, Eye, UserPlus, Shield, AlertTriangle, Activity,
-  Lock, Fingerprint, FileWarning, Globe
+  Lock, Fingerprint, Globe, FileImage, User, ScanFace
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -20,15 +23,22 @@ interface VerificationRow {
   user_id: string;
   philsys_status: string;
   biometric_status: string;
-  screenshot_url: string | null;
-  screenshot_score: number;
-  screenshot_checks: any;
   id_front_url: string | null;
+  id_back_url: string | null;
   selfie_url: string | null;
   liveness_result: boolean;
   face_match_score: number;
   anti_spoof_passed: boolean;
   anti_spoof_reasons: string[];
+  screenshot_score: number;
+  id_last_name: string | null;
+  id_first_name: string | null;
+  id_middle_name: string | null;
+  id_date_of_birth: string | null;
+  id_sex: string | null;
+  id_blood_type: string | null;
+  id_marital_status: string | null;
+  id_place_of_birth: string | null;
   created_at: string;
   updated_at: string;
   profile?: { first_name: string; last_name: string; status: string } | null;
@@ -63,6 +73,8 @@ const AdminDashboard = () => {
   const [stats, setStats] = useState({ total: 0, pending: 0, verified: 0, secEvents: 0, failedLogins: 0 });
   const [adminEmail, setAdminEmail] = useState('');
   const [promoting, setPromoting] = useState(false);
+  const [rejectDialog, setRejectDialog] = useState<{ open: boolean; verificationId: string; userId: string; field: 'philsys_status' | 'biometric_status' }>({ open: false, verificationId: '', userId: '', field: 'philsys_status' });
+  const [rejectReason, setRejectReason] = useState('');
 
   useEffect(() => {
     if (!isAdmin) { navigate('/'); return; }
@@ -87,7 +99,7 @@ const AdminDashboard = () => {
     const failedLogins = (laRes.data || []).filter((a: any) => !a.success).length;
     setStats({
       total: enriched.length,
-      pending: enriched.filter(v => v.philsys_status === 'pending' || v.biometric_status === 'pending').length,
+      pending: enriched.filter(v => (v.philsys_status === 'pending' && v.id_front_url) || (v.biometric_status === 'pending' && v.selfie_url)).length,
       verified: enriched.filter(v => v.philsys_status === 'verified' && v.biometric_status === 'verified').length,
       secEvents: (seRes.data || []).filter((e: any) => e.severity === 'warning' || e.severity === 'critical').length,
       failedLogins,
@@ -95,36 +107,69 @@ const AdminDashboard = () => {
     setLoading(false);
   };
 
-  const handleAction = async (verificationId: string, userId: string, field: 'philsys_status' | 'biometric_status', action: 'verified' | 'rejected') => {
-    const update: any = { [field]: action };
+  const getSignedUrl = (path: string | null) => {
+    if (!path) return null;
+    return supabase.storage.from('verification-docs').getPublicUrl(path).data.publicUrl;
+  };
+
+  const handleApprove = async (verificationId: string, userId: string) => {
     const ver = verifications.find(v => v.id === verificationId);
-    const otherField = field === 'philsys_status' ? 'biometric_status' : 'philsys_status';
-    const otherStatus = ver?.[otherField];
+    if (!ver) return;
 
-    if (action === 'verified' && otherStatus === 'verified') {
+    // If both phases have data, approve fully
+    const bothReady = ver.id_front_url && ver.selfie_url && ver.id_last_name;
+    if (bothReady) {
+      await supabase.from('verifications').update({ philsys_status: 'verified' as any, biometric_status: 'verified' as any }).eq('id', verificationId);
       await supabase.from('profiles').update({ status: 'verified' as any }).eq('id', userId);
+    } else if (ver.id_front_url && !ver.selfie_url) {
+      await supabase.from('verifications').update({ philsys_status: 'verified' as any }).eq('id', verificationId);
     }
-
-    await supabase.from('verifications').update(update).eq('id', verificationId);
 
     if (user) {
       await supabase.from('admin_logs').insert({
-        admin_id: user.id,
-        user_id: userId,
-        action: `${field}_${action}`,
-        reason: `Admin ${action} ${field.replace('_status', '')} verification`,
+        admin_id: user.id, user_id: userId,
+        action: 'verification_approved',
+        reason: 'Admin approved verification',
       });
-
       await supabase.from('notifications').insert({
-        user_id: userId,
-        type: 'verification',
-        title: action === 'verified' ? 'Verification Approved' : 'Verification Rejected',
-        body: `Your ${field.replace('_status', '')} verification has been ${action}.`,
+        user_id: userId, type: 'verification',
+        title: 'Verification Approved',
+        body: 'Your identity verification has been approved! You now have full marketplace access.',
+        link: '/marketplace',
+      });
+    }
+
+    toast.success('Verification approved');
+    fetchData();
+  };
+
+  const handleReject = async () => {
+    if (!rejectReason.trim()) { toast.error('Please provide a reason'); return; }
+
+    await supabase.from('verifications').update({
+      [rejectDialog.field]: 'rejected' as any,
+      admin_reject_reason: rejectReason,
+      // Reset uploaded data so user can re-submit
+      ...(rejectDialog.field === 'philsys_status' ? { id_front_url: null, id_back_url: null, id_last_name: null, id_first_name: null } : { selfie_url: null, liveness_result: false }),
+    } as any).eq('id', rejectDialog.verificationId);
+
+    if (user) {
+      await supabase.from('admin_logs').insert({
+        admin_id: user.id, user_id: rejectDialog.userId,
+        action: 'verification_rejected',
+        reason: rejectReason,
+      });
+      await supabase.from('notifications').insert({
+        user_id: rejectDialog.userId, type: 'verification',
+        title: 'Verification Rejected',
+        body: `Your verification was rejected. Reason: ${rejectReason}`,
         link: '/verification',
       });
     }
 
-    toast.success(`Verification ${action}`);
+    toast.success('Verification rejected');
+    setRejectDialog({ open: false, verificationId: '', userId: '', field: 'philsys_status' });
+    setRejectReason('');
     fetchData();
   };
 
@@ -139,20 +184,16 @@ const AdminDashboard = () => {
         body: JSON.stringify({ email: adminEmail }),
       });
       const data = await res.json();
-      if (res.ok) {
-        toast.success(data.message);
-        setAdminEmail('');
-      } else {
-        toast.error(data.error || 'Failed');
-      }
-    } catch {
-      toast.error('Failed to promote admin');
-    }
+      if (res.ok) { toast.success(data.message); setAdminEmail(''); }
+      else toast.error(data.error || 'Failed');
+    } catch { toast.error('Failed to promote admin'); }
     setPromoting(false);
   };
 
-  const pendingPhilsys = verifications.filter(v => v.philsys_status === 'pending' && v.screenshot_url);
-  const pendingBiometric = verifications.filter(v => v.biometric_status === 'pending' && v.selfie_url && v.philsys_status === 'verified');
+  const pendingVerifications = verifications.filter(v =>
+    (v.id_front_url && v.id_last_name && v.selfie_url) &&
+    (v.philsys_status === 'pending' || v.biometric_status === 'pending')
+  );
 
   const severityColor = (s: string) => {
     if (s === 'critical') return 'text-red-600 bg-red-50';
@@ -188,9 +229,7 @@ const AdminDashboard = () => {
         ].map((s, i) => (
           <Card key={i} className="border">
             <CardContent className="p-4 flex items-center gap-3">
-              <div className="h-9 w-9 rounded-md border flex items-center justify-center">
-                <s.icon className="h-4 w-4" />
-              </div>
+              <div className="h-9 w-9 rounded-md border flex items-center justify-center"><s.icon className="h-4 w-4" /></div>
               <div>
                 <p className="text-xl font-bold">{s.value}</p>
                 <p className="text-[11px] text-muted-foreground">{s.label}</p>
@@ -213,13 +252,10 @@ const AdminDashboard = () => {
         </CardContent>
       </Card>
 
-      <Tabs defaultValue="philsys">
+      <Tabs defaultValue="reviews">
         <TabsList className="flex-wrap">
-          <TabsTrigger value="philsys" className="gap-1 text-xs">
-            <ShieldAlert className="h-3 w-3" /> PhilSys ({pendingPhilsys.length})
-          </TabsTrigger>
-          <TabsTrigger value="biometric" className="gap-1 text-xs">
-            <Fingerprint className="h-3 w-3" /> Biometric ({pendingBiometric.length})
+          <TabsTrigger value="reviews" className="gap-1 text-xs">
+            <ShieldCheck className="h-3 w-3" /> Pending Reviews ({pendingVerifications.length})
           </TabsTrigger>
           <TabsTrigger value="security" className="gap-1 text-xs">
             <Shield className="h-3 w-3" /> Security Log
@@ -229,97 +265,102 @@ const AdminDashboard = () => {
           </TabsTrigger>
         </TabsList>
 
-        {/* PhilSys Tab */}
-        <TabsContent value="philsys" className="space-y-3 mt-4">
-          {pendingPhilsys.length === 0 ? (
-            <p className="text-center py-8 text-sm text-muted-foreground">No pending PhilSys reviews</p>
-          ) : pendingPhilsys.map(v => (
+        {/* Verification Reviews */}
+        <TabsContent value="reviews" className="space-y-4 mt-4">
+          {pendingVerifications.length === 0 ? (
+            <p className="text-center py-8 text-sm text-muted-foreground">No pending verification reviews</p>
+          ) : pendingVerifications.map(v => (
             <Card key={v.id} className="border">
-              <CardContent className="p-4 space-y-3">
+              <CardContent className="p-5 space-y-4">
+                {/* Header */}
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="font-medium text-sm">{v.profile?.first_name} {v.profile?.last_name}</p>
-                    <p className="text-[11px] text-muted-foreground">{new Date(v.updated_at).toLocaleDateString()}</p>
+                    <p className="font-semibold">{v.profile?.first_name} {v.profile?.last_name}</p>
+                    <p className="text-[11px] text-muted-foreground">Submitted: {new Date(v.updated_at).toLocaleDateString()}</p>
                   </div>
-                  <Badge variant="secondary" className="text-[10px]">Pending</Badge>
+                  <Badge variant="secondary">Pending Review</Badge>
                 </div>
-                <Collapsible>
-                  <CollapsibleTrigger className="flex items-center gap-1.5 text-xs hover:underline">
-                    <Eye className="h-3 w-3" /> Security Analysis <ChevronDown className="h-3 w-3" />
-                  </CollapsibleTrigger>
-                  <CollapsibleContent className="mt-2 p-3 bg-muted rounded-lg text-xs space-y-2">
-                    <div className="grid grid-cols-2 gap-2">
-                      <div>
-                        <p className="text-muted-foreground">Confidence</p>
-                        <p className="text-lg font-bold">{v.screenshot_score?.toFixed(1)}%</p>
-                      </div>
-                      <div>
-                        <p className="text-muted-foreground">Risk Level</p>
-                        <p className={`text-lg font-bold ${v.screenshot_score >= 60 ? 'text-green-700' : 'text-destructive'}`}>
-                          {v.screenshot_score >= 60 ? 'LOW' : 'HIGH'}
-                        </p>
-                      </div>
-                    </div>
-                  </CollapsibleContent>
-                </Collapsible>
-                <div className="flex gap-2">
-                  <Button size="sm" className="gap-1 bg-foreground text-background hover:bg-foreground/90" onClick={() => handleAction(v.id, v.user_id, 'philsys_status', 'verified')}>
-                    <CheckCircle className="h-3 w-3" /> Approve
-                  </Button>
-                  <Button size="sm" variant="outline" className="gap-1" onClick={() => handleAction(v.id, v.user_id, 'philsys_status', 'rejected')}>
-                    <XCircle className="h-3 w-3" /> Reject
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-        </TabsContent>
 
-        {/* Biometric Tab */}
-        <TabsContent value="biometric" className="space-y-3 mt-4">
-          {pendingBiometric.length === 0 ? (
-            <p className="text-center py-8 text-sm text-muted-foreground">No pending biometric reviews</p>
-          ) : pendingBiometric.map(v => (
-            <Card key={v.id} className="border">
-              <CardContent className="p-4 space-y-3">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="font-medium text-sm">{v.profile?.first_name} {v.profile?.last_name}</p>
-                    <p className="text-[11px] text-muted-foreground">{new Date(v.updated_at).toLocaleDateString()}</p>
-                  </div>
-                  <Badge variant="secondary" className="text-[10px]">Pending</Badge>
-                </div>
+                {/* Uploaded Documents */}
                 <Collapsible>
-                  <CollapsibleTrigger className="flex items-center gap-1.5 text-xs hover:underline">
-                    <Eye className="h-3 w-3" /> Security Analysis <ChevronDown className="h-3 w-3" />
+                  <CollapsibleTrigger className="flex items-center gap-1.5 text-xs font-medium hover:underline">
+                    <FileImage className="h-3.5 w-3.5" /> Uploaded ID Documents <ChevronDown className="h-3 w-3" />
                   </CollapsibleTrigger>
-                  <CollapsibleContent className="mt-2 p-3 bg-muted rounded-lg text-xs space-y-2">
-                    <div className="grid grid-cols-3 gap-2">
-                      <div>
-                        <p className="text-muted-foreground">Face Match</p>
-                        <p className="text-lg font-bold">{(v.face_match_score * 100).toFixed(1)}%</p>
+                  <CollapsibleContent className="mt-3 grid grid-cols-2 gap-3">
+                    <div className="space-y-1">
+                      <p className="text-[10px] text-muted-foreground font-medium">ID Front</p>
+                      {v.id_front_url ? (
+                        <img src={getSignedUrl(v.id_front_url) || ''} alt="ID Front" className="w-full h-40 object-cover rounded-lg border" />
+                      ) : (
+                        <div className="w-full h-40 bg-muted rounded-lg flex items-center justify-center"><FileImage className="h-6 w-6 text-muted-foreground" /></div>
+                      )}
+                    </div>
+                    <div className="space-y-1">
+                      <p className="text-[10px] text-muted-foreground font-medium">ID Back</p>
+                      {v.id_back_url ? (
+                        <img src={getSignedUrl(v.id_back_url) || ''} alt="ID Back" className="w-full h-40 object-cover rounded-lg border" />
+                      ) : (
+                        <div className="w-full h-40 bg-muted rounded-lg flex items-center justify-center"><FileImage className="h-6 w-6 text-muted-foreground" /></div>
+                      )}
+                    </div>
+                  </CollapsibleContent>
+                </Collapsible>
+
+                {/* User-Entered Data */}
+                <Collapsible>
+                  <CollapsibleTrigger className="flex items-center gap-1.5 text-xs font-medium hover:underline">
+                    <User className="h-3.5 w-3.5" /> User-Inputted Data <ChevronDown className="h-3 w-3" />
+                  </CollapsibleTrigger>
+                  <CollapsibleContent className="mt-3 p-3 rounded-lg border bg-muted/30">
+                    <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-xs">
+                      <div><span className="text-muted-foreground">Last Name:</span> <span className="font-medium">{v.id_last_name || '—'}</span></div>
+                      <div><span className="text-muted-foreground">First Name:</span> <span className="font-medium">{v.id_first_name || '—'}</span></div>
+                      <div><span className="text-muted-foreground">Middle Name:</span> <span className="font-medium">{v.id_middle_name || '—'}</span></div>
+                      <div><span className="text-muted-foreground">Date of Birth:</span> <span className="font-medium">{v.id_date_of_birth || '—'}</span></div>
+                      <div><span className="text-muted-foreground">Sex:</span> <span className="font-medium">{v.id_sex || '—'}</span></div>
+                      <div><span className="text-muted-foreground">Blood Type:</span> <span className="font-medium">{v.id_blood_type || '—'}</span></div>
+                      <div><span className="text-muted-foreground">Marital Status:</span> <span className="font-medium">{v.id_marital_status || '—'}</span></div>
+                      <div><span className="text-muted-foreground">Place of Birth:</span> <span className="font-medium">{v.id_place_of_birth || '—'}</span></div>
+                    </div>
+                  </CollapsibleContent>
+                </Collapsible>
+
+                {/* Liveness Selfie */}
+                <Collapsible>
+                  <CollapsibleTrigger className="flex items-center gap-1.5 text-xs font-medium hover:underline">
+                    <ScanFace className="h-3.5 w-3.5" /> Liveness Selfie <ChevronDown className="h-3 w-3" />
+                  </CollapsibleTrigger>
+                  <CollapsibleContent className="mt-3">
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="space-y-1">
+                        <p className="text-[10px] text-muted-foreground font-medium">Live Selfie</p>
+                        {v.selfie_url ? (
+                          <img src={getSignedUrl(v.selfie_url) || ''} alt="Selfie" className="w-full h-40 object-cover rounded-lg border" />
+                        ) : (
+                          <div className="w-full h-40 bg-muted rounded-lg flex items-center justify-center"><ScanFace className="h-6 w-6 text-muted-foreground" /></div>
+                        )}
                       </div>
-                      <div>
-                        <p className="text-muted-foreground">Liveness</p>
-                        <p className={`text-lg font-bold ${v.liveness_result ? 'text-green-700' : 'text-destructive'}`}>
-                          {v.liveness_result ? 'PASS' : 'FAIL'}
-                        </p>
-                      </div>
-                      <div>
-                        <p className="text-muted-foreground">Anti-Spoof</p>
-                        <p className={`text-lg font-bold ${v.anti_spoof_passed ? 'text-green-700' : 'text-destructive'}`}>
-                          {v.anti_spoof_passed ? 'PASS' : 'FLAG'}
-                        </p>
+                      <div className="space-y-2 text-xs">
+                        <div className={`rounded-md border p-2 ${v.liveness_result ? 'border-green-500/30 bg-green-50' : 'border-destructive/30 bg-destructive/5'}`}>
+                          <p className="text-muted-foreground">Liveness</p>
+                          <p className={`text-lg font-bold ${v.liveness_result ? 'text-green-700' : 'text-destructive'}`}>{v.liveness_result ? 'PASS' : 'FAIL'}</p>
+                        </div>
+                        <div className={`rounded-md border p-2 ${v.face_match_score >= 0.8 ? 'border-green-500/30 bg-green-50' : 'border-destructive/30 bg-destructive/5'}`}>
+                          <p className="text-muted-foreground">Face Match</p>
+                          <p className={`text-lg font-bold ${v.face_match_score >= 0.8 ? 'text-green-700' : 'text-destructive'}`}>{(v.face_match_score * 100).toFixed(1)}%</p>
+                        </div>
                       </div>
                     </div>
                   </CollapsibleContent>
                 </Collapsible>
-                <div className="flex gap-2">
-                  <Button size="sm" className="gap-1 bg-foreground text-background hover:bg-foreground/90" onClick={() => handleAction(v.id, v.user_id, 'biometric_status', 'verified')}>
-                    <CheckCircle className="h-3 w-3" /> Approve
+
+                {/* Admin Actions */}
+                <div className="flex gap-2 pt-2 border-t">
+                  <Button size="sm" className="gap-1.5 bg-foreground text-background hover:bg-foreground/90" onClick={() => handleApprove(v.id, v.user_id)}>
+                    <CheckCircle className="h-3.5 w-3.5" /> Approve
                   </Button>
-                  <Button size="sm" variant="outline" className="gap-1" onClick={() => handleAction(v.id, v.user_id, 'biometric_status', 'rejected')}>
-                    <XCircle className="h-3 w-3" /> Reject
+                  <Button size="sm" variant="outline" className="gap-1.5" onClick={() => setRejectDialog({ open: true, verificationId: v.id, userId: v.user_id, field: 'philsys_status' })}>
+                    <XCircle className="h-3.5 w-3.5" /> Reject
                   </Button>
                 </div>
               </CardContent>
@@ -336,25 +377,16 @@ const AdminDashboard = () => {
               {securityEvents.map(ev => (
                 <Card key={ev.id} className="border">
                   <CardContent className="p-3 flex items-start gap-3">
-                    <div className={`p-1.5 rounded ${severityColor(ev.severity)}`}>
-                      {severityIcon(ev.severity)}
-                    </div>
+                    <div className={`p-1.5 rounded ${severityColor(ev.severity)}`}>{severityIcon(ev.severity)}</div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center justify-between">
                         <p className="text-sm font-medium">{ev.event_type.replace(/_/g, ' ').toUpperCase()}</p>
-                        <Badge variant={ev.severity === 'critical' ? 'destructive' : 'secondary'} className="text-[10px]">
-                          {ev.severity}
-                        </Badge>
+                        <Badge variant={ev.severity === 'critical' ? 'destructive' : 'secondary'} className="text-[10px]">{ev.severity}</Badge>
                       </div>
                       <p className="text-xs text-muted-foreground mt-0.5">{ev.description}</p>
                       <div className="flex items-center gap-3 mt-1 text-[11px] text-muted-foreground">
                         <span>{new Date(ev.created_at).toLocaleString()}</span>
-                        {ev.user_agent && (
-                          <span className="flex items-center gap-1">
-                            <Globe className="h-3 w-3" />
-                            {ev.user_agent.substring(0, 40)}...
-                          </span>
-                        )}
+                        {ev.user_agent && <span className="flex items-center gap-1"><Globe className="h-3 w-3" />{ev.user_agent.substring(0, 40)}...</span>}
                       </div>
                     </div>
                   </CardContent>
@@ -389,9 +421,7 @@ const AdminDashboard = () => {
                         </Badge>
                       </td>
                       <td className="p-3 text-xs text-muted-foreground">{new Date(la.created_at).toLocaleString()}</td>
-                      <td className="p-3 text-[11px] text-muted-foreground truncate max-w-[200px] hidden md:table-cell">
-                        {la.user_agent?.substring(0, 60)}
-                      </td>
+                      <td className="p-3 text-xs text-muted-foreground hidden md:table-cell truncate max-w-[200px]">{la.user_agent || '—'}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -401,34 +431,22 @@ const AdminDashboard = () => {
         </TabsContent>
       </Tabs>
 
-      {/* Security Features Summary */}
-      <Card className="mt-8 border">
-        <CardHeader className="pb-3">
-          <CardTitle className="text-sm flex items-center gap-2">
-            <Shield className="h-4 w-4" /> Active Security Features
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-            {[
-              { icon: Fingerprint, label: 'Biometric Liveness', desc: 'face-api.js real-time detection' },
-              { icon: ShieldCheck, label: 'PhilSys ID Verify', desc: 'Anti-tampering screenshot analysis' },
-              { icon: Lock, label: 'Brute Force Protection', desc: 'Rate limiting & account lockout' },
-              { icon: FileWarning, label: 'HIBP Breach Check', desc: 'Leaked password detection' },
-              { icon: Eye, label: 'Face Re-Auth', desc: 'Mandatory for transactions' },
-              { icon: Shield, label: 'Row-Level Security', desc: 'PostgreSQL RLS on all tables' },
-              { icon: Activity, label: 'Audit Trail', desc: 'Full event logging' },
-              { icon: Globe, label: 'Session Monitoring', desc: 'Device & activity tracking' },
-            ].map((f, i) => (
-              <div key={i} className="p-3 rounded-lg bg-muted/50 border">
-                <f.icon className="h-4 w-4 mb-2" />
-                <p className="text-xs font-medium">{f.label}</p>
-                <p className="text-[11px] text-muted-foreground">{f.desc}</p>
-              </div>
-            ))}
+      {/* Reject Dialog */}
+      <Dialog open={rejectDialog.open} onOpenChange={open => !open && setRejectDialog(prev => ({ ...prev, open: false }))}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Reject Verification</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <Label>Reason for rejection</Label>
+            <Textarea placeholder="e.g., Blurry ID, Data mismatch, Selfie doesn't match ID photo..." value={rejectReason} onChange={e => setRejectReason(e.target.value)} rows={3} />
           </div>
-        </CardContent>
-      </Card>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setRejectDialog(prev => ({ ...prev, open: false }))}>Cancel</Button>
+            <Button variant="destructive" onClick={handleReject} disabled={!rejectReason.trim()}>Reject</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
