@@ -109,28 +109,28 @@ const AdminDashboard = () => {
 
   const [signedUrls, setSignedUrls] = useState<Record<string, string>>({});
 
-  const getSignedUrl = async (path: string | null): Promise<string | null> => {
-    if (!path) return null;
-    if (signedUrls[path]) return signedUrls[path];
-    const { data } = await supabase.storage.from('verification-docs').createSignedUrl(path, 3600);
-    if (data?.signedUrl) {
-      setSignedUrls(prev => ({ ...prev, [path]: data.signedUrl }));
-      return data.signedUrl;
-    }
-    return null;
-  };
-
-  // Pre-load signed URLs for pending verifications
+  // Pre-load signed URLs for all verification documents
   useEffect(() => {
     const loadUrls = async () => {
+      const paths: string[] = [];
       for (const v of verifications) {
-        if (v.id_front_url) await getSignedUrl(v.id_front_url);
-        if (v.id_back_url) await getSignedUrl(v.id_back_url);
-        if (v.selfie_url) await getSignedUrl(v.selfie_url);
+        if (v.id_front_url) paths.push(v.id_front_url);
+        if (v.id_back_url) paths.push(v.id_back_url);
+        if (v.selfie_url) paths.push(v.selfie_url);
       }
+      const newUrls: Record<string, string> = {};
+      for (const path of paths) {
+        if (!signedUrls[path]) {
+          const { data } = await supabase.storage.from('verification-docs').createSignedUrl(path, 3600);
+          if (data?.signedUrl) newUrls[path] = data.signedUrl;
+        }
+      }
+      if (Object.keys(newUrls).length > 0) setSignedUrls(prev => ({ ...prev, ...newUrls }));
     };
     if (verifications.length > 0) loadUrls();
   }, [verifications]);
+
+  const getUrl = (path: string | null) => path ? signedUrls[path] || '' : '';
 
   const handleApprove = async (verificationId: string, userId: string) => {
     const ver = verifications.find(v => v.id === verificationId);
