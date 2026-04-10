@@ -107,10 +107,30 @@ const AdminDashboard = () => {
     setLoading(false);
   };
 
-  const getSignedUrl = (path: string | null) => {
-    if (!path) return null;
-    return supabase.storage.from('verification-docs').getPublicUrl(path).data.publicUrl;
-  };
+  const [signedUrls, setSignedUrls] = useState<Record<string, string>>({});
+
+  // Pre-load signed URLs for all verification documents
+  useEffect(() => {
+    const loadUrls = async () => {
+      const paths: string[] = [];
+      for (const v of verifications) {
+        if (v.id_front_url) paths.push(v.id_front_url);
+        if (v.id_back_url) paths.push(v.id_back_url);
+        if (v.selfie_url) paths.push(v.selfie_url);
+      }
+      const newUrls: Record<string, string> = {};
+      for (const path of paths) {
+        if (!signedUrls[path]) {
+          const { data } = await supabase.storage.from('verification-docs').createSignedUrl(path, 3600);
+          if (data?.signedUrl) newUrls[path] = data.signedUrl;
+        }
+      }
+      if (Object.keys(newUrls).length > 0) setSignedUrls(prev => ({ ...prev, ...newUrls }));
+    };
+    if (verifications.length > 0) loadUrls();
+  }, [verifications]);
+
+  const getUrl = (path: string | null) => path ? signedUrls[path] || '' : '';
 
   const handleApprove = async (verificationId: string, userId: string) => {
     const ver = verifications.find(v => v.id === verificationId);
@@ -290,7 +310,7 @@ const AdminDashboard = () => {
                     <div className="space-y-1">
                       <p className="text-[10px] text-muted-foreground font-medium">ID Front</p>
                       {v.id_front_url ? (
-                        <img src={getSignedUrl(v.id_front_url) || ''} alt="ID Front" className="w-full h-40 object-cover rounded-lg border" />
+                        <img src={getUrl(v.id_front_url) || ''} alt="ID Front" className="w-full h-40 object-cover rounded-lg border" />
                       ) : (
                         <div className="w-full h-40 bg-muted rounded-lg flex items-center justify-center"><FileImage className="h-6 w-6 text-muted-foreground" /></div>
                       )}
@@ -298,7 +318,7 @@ const AdminDashboard = () => {
                     <div className="space-y-1">
                       <p className="text-[10px] text-muted-foreground font-medium">ID Back</p>
                       {v.id_back_url ? (
-                        <img src={getSignedUrl(v.id_back_url) || ''} alt="ID Back" className="w-full h-40 object-cover rounded-lg border" />
+                        <img src={getUrl(v.id_back_url) || ''} alt="ID Back" className="w-full h-40 object-cover rounded-lg border" />
                       ) : (
                         <div className="w-full h-40 bg-muted rounded-lg flex items-center justify-center"><FileImage className="h-6 w-6 text-muted-foreground" /></div>
                       )}
@@ -335,7 +355,7 @@ const AdminDashboard = () => {
                       <div className="space-y-1">
                         <p className="text-[10px] text-muted-foreground font-medium">Live Selfie</p>
                         {v.selfie_url ? (
-                          <img src={getSignedUrl(v.selfie_url) || ''} alt="Selfie" className="w-full h-40 object-cover rounded-lg border" />
+                          <img src={getUrl(v.selfie_url) || ''} alt="Selfie" className="w-full h-40 object-cover rounded-lg border" />
                         ) : (
                           <div className="w-full h-40 bg-muted rounded-lg flex items-center justify-center"><ScanFace className="h-6 w-6 text-muted-foreground" /></div>
                         )}
