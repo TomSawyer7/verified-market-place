@@ -310,7 +310,7 @@ const AdminDashboard = () => {
                     <div className="space-y-1">
                       <p className="text-[10px] text-muted-foreground font-medium">ID Front</p>
                       {v.id_front_url ? (
-                        <img src={getSignedUrl(v.id_front_url) || ''} alt="ID Front" className="w-full h-40 object-cover rounded-lg border" />
+                        <img src={getUrl(v.id_front_url) || ''} alt="ID Front" className="w-full h-40 object-cover rounded-lg border" />
                       ) : (
                         <div className="w-full h-40 bg-muted rounded-lg flex items-center justify-center"><FileImage className="h-6 w-6 text-muted-foreground" /></div>
                       )}
@@ -318,7 +318,7 @@ const AdminDashboard = () => {
                     <div className="space-y-1">
                       <p className="text-[10px] text-muted-foreground font-medium">ID Back</p>
                       {v.id_back_url ? (
-                        <img src={getSignedUrl(v.id_back_url) || ''} alt="ID Back" className="w-full h-40 object-cover rounded-lg border" />
+                        <img src={getUrl(v.id_back_url) || ''} alt="ID Back" className="w-full h-40 object-cover rounded-lg border" />
                       ) : (
                         <div className="w-full h-40 bg-muted rounded-lg flex items-center justify-center"><FileImage className="h-6 w-6 text-muted-foreground" /></div>
                       )}
@@ -355,7 +355,7 @@ const AdminDashboard = () => {
                       <div className="space-y-1">
                         <p className="text-[10px] text-muted-foreground font-medium">Live Selfie</p>
                         {v.selfie_url ? (
-                          <img src={getSignedUrl(v.selfie_url) || ''} alt="Selfie" className="w-full h-40 object-cover rounded-lg border" />
+                          <img src={getUrl(v.selfie_url) || ''} alt="Selfie" className="w-full h-40 object-cover rounded-lg border" />
                         ) : (
                           <div className="w-full h-40 bg-muted rounded-lg flex items-center justify-center"><ScanFace className="h-6 w-6 text-muted-foreground" /></div>
                         )}
