@@ -1,16 +1,21 @@
 import { useEffect, useState, useRef, useCallback } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, Link } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
-import { ShieldCheck, MessageCircle, ShoppingCart, Camera, AlertTriangle, Package } from 'lucide-react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Textarea } from '@/components/ui/textarea';
+import { Label } from '@/components/ui/label';
+import { ShieldCheck, MessageCircle, ShoppingCart, Camera, AlertTriangle, Package, Flag, MapPin } from 'lucide-react';
 import { toast } from 'sonner';
 import * as faceapi from 'face-api.js';
 import SellerReviews, { SellerRatingBadge } from '@/components/SellerReviews';
 import ProductRecommendations from '@/components/ProductRecommendations';
+
+const REPORT_REASONS = ['Suspicious listing', 'Counterfeit item', 'Misleading description', 'Scam', 'Other'];
 
 const ProductDetail = () => {
   const { id } = useParams();
@@ -25,6 +30,12 @@ const ProductDetail = () => {
   const [cameraActive, setCameraActive] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
+
+  // Report state
+  const [reportOpen, setReportOpen] = useState(false);
+  const [reportReason, setReportReason] = useState('');
+  const [reportDesc, setReportDesc] = useState('');
+  const [reporting, setReporting] = useState(false);
 
   useEffect(() => {
     const fetchProduct = async () => {
@@ -138,6 +149,30 @@ const ProductDetail = () => {
     setVerifying(false);
   };
 
+  const handleReport = async () => {
+    if (!user || !product || !reportReason) return;
+    setReporting(true);
+    const { error } = await supabase.from('reported_listings').insert({
+      reporter_id: user.id,
+      product_id: product.id,
+      reason: reportReason,
+      description: reportDesc || null,
+    } as any);
+    setReporting(false);
+    if (error) {
+      if (error.message?.includes('row-level security')) {
+        toast.error('You cannot report your own listing');
+      } else {
+        toast.error('Failed to submit report');
+      }
+    } else {
+      toast.success('Report submitted. Our team will review it.');
+      setReportOpen(false);
+      setReportReason('');
+      setReportDesc('');
+    }
+  };
+
   useEffect(() => {
     if (faceAuthOpen) startCamera();
     else stopCamera();
@@ -164,6 +199,8 @@ const ProductDetail = () => {
     );
   }
 
+  const isOwnProduct = user?.id === product.user_id;
+
   return (
     <div className="container py-8 space-y-10">
       <div className="grid lg:grid-cols-2 gap-8">
@@ -179,7 +216,14 @@ const ProductDetail = () => {
 
         <div className="space-y-6">
           <div>
-            <Badge variant="secondary" className="mb-2 text-xs">{product.category || 'General'}</Badge>
+            <div className="flex items-center gap-2 mb-2">
+              <Badge variant="secondary" className="text-xs">{product.category || 'General'}</Badge>
+              {product.location && (
+                <Badge variant="outline" className="text-xs gap-1">
+                  <MapPin className="h-3 w-3" /> {product.location}
+                </Badge>
+              )}
+            </div>
             <h1 className="text-2xl font-bold">{product.title}</h1>
             <p className="text-2xl font-bold mt-2">₱{product.price.toLocaleString()}</p>
           </div>
@@ -188,11 +232,13 @@ const ProductDetail = () => {
 
           <Card>
             <CardContent className="p-4 flex items-center gap-3">
-              <div className="h-10 w-10 rounded-full bg-foreground/5 flex items-center justify-center">
+              <Link to={`/seller/${product.user_id}`} className="h-10 w-10 rounded-full bg-foreground/5 flex items-center justify-center hover:bg-foreground/10 transition-colors">
                 <span className="text-sm font-bold">{seller?.first_name?.[0]}{seller?.last_name?.[0]}</span>
-              </div>
+              </Link>
               <div className="flex-1">
-                <p className="font-medium text-sm">{seller?.first_name} {seller?.last_name}</p>
+                <Link to={`/seller/${product.user_id}`} className="font-medium text-sm hover:underline">
+                  {seller?.first_name} {seller?.last_name}
+                </Link>
                 <div className="flex items-center gap-2">
                   {seller?.status === 'verified' && (
                     <div className="flex items-center gap-1 text-xs text-muted-foreground">
@@ -214,9 +260,16 @@ const ProductDetail = () => {
             </Button>
           </div>
 
-          <div className="flex items-center gap-2 text-xs text-muted-foreground border p-3 rounded-lg">
-            <AlertTriangle className="h-4 w-4 flex-shrink-0" />
-            <span>Face ID re-authentication required for all transactions.</span>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2 text-xs text-muted-foreground border p-3 rounded-lg flex-1">
+              <AlertTriangle className="h-4 w-4 flex-shrink-0" />
+              <span>Face ID re-authentication required for all transactions.</span>
+            </div>
+            {user && !isOwnProduct && (
+              <Button variant="ghost" size="sm" className="ml-2 text-xs text-muted-foreground gap-1" onClick={() => setReportOpen(true)}>
+                <Flag className="h-3.5 w-3.5" /> Report
+              </Button>
+            )}
           </div>
         </div>
       </div>
@@ -231,6 +284,7 @@ const ProductDetail = () => {
         <ProductRecommendations currentProductId={product.id} category={product.category} sellerId={product.user_id} />
       </div>
 
+      {/* Face Auth Dialog */}
       <Dialog open={faceAuthOpen} onOpenChange={setFaceAuthOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
@@ -252,6 +306,39 @@ const ProductDetail = () => {
               {verifying ? 'Verifying...' : 'Verify My Identity'}
             </Button>
           </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Report Dialog */}
+      <Dialog open={reportOpen} onOpenChange={setReportOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Flag className="h-5 w-5" /> Report Listing
+            </DialogTitle>
+            <DialogDescription>Report this listing if you believe it violates our policies.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="space-y-1.5">
+              <Label className="text-xs">Reason</Label>
+              <Select value={reportReason} onValueChange={setReportReason}>
+                <SelectTrigger><SelectValue placeholder="Select a reason" /></SelectTrigger>
+                <SelectContent>
+                  {REPORT_REASONS.map(r => <SelectItem key={r} value={r}>{r}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs">Additional details (optional)</Label>
+              <Textarea value={reportDesc} onChange={e => setReportDesc(e.target.value)} placeholder="Provide more context..." rows={3} />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setReportOpen(false)}>Cancel</Button>
+            <Button onClick={handleReport} disabled={!reportReason || reporting} className="bg-foreground text-background hover:bg-foreground/90">
+              {reporting ? 'Submitting...' : 'Submit Report'}
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

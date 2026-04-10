@@ -4,7 +4,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Link } from 'react-router-dom';
-import { Search, ShieldCheck, Package } from 'lucide-react';
+import { Search, ShieldCheck, Package, MapPin } from 'lucide-react';
 import ProductRecommendations from '@/components/ProductRecommendations';
 import VerificationGate from '@/components/VerificationGate';
 
@@ -14,6 +14,7 @@ interface Product {
   description: string | null;
   price: number;
   category: string | null;
+  location: string | null;
   image_url: string | null;
   created_at: string;
   user_id: string;
@@ -21,9 +22,12 @@ interface Product {
   seller_verified?: boolean;
 }
 
+const LOCATIONS = ['All Locations', 'Metro Manila', 'Cebu', 'Davao', 'Pampanga', 'Laguna', 'Cavite', 'Bulacan'];
+
 const MarketplaceContent = () => {
   const [products, setProducts] = useState<Product[]>([]);
   const [search, setSearch] = useState('');
+  const [locationFilter, setLocationFilter] = useState('All Locations');
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -57,15 +61,19 @@ const MarketplaceContent = () => {
     fetchProducts();
   }, []);
 
-  const filtered = products.filter(p =>
-    p.title.toLowerCase().includes(search.toLowerCase()) ||
-    (p.category?.toLowerCase().includes(search.toLowerCase()))
-  );
+  const filtered = products.filter(p => {
+    const matchesSearch = p.title.toLowerCase().includes(search.toLowerCase()) ||
+      (p.category?.toLowerCase().includes(search.toLowerCase())) ||
+      (p.location?.toLowerCase().includes(search.toLowerCase()));
+    const matchesLocation = locationFilter === 'All Locations' ||
+      (p.location?.toLowerCase().includes(locationFilter.toLowerCase()));
+    return matchesSearch && matchesLocation;
+  });
 
   return (
     <div className="min-h-[calc(100vh-3.5rem)]">
       <div className="container py-8">
-        <div className="flex items-center justify-between mb-8">
+        <div className="flex items-center justify-between mb-6">
           <div>
             <h1 className="text-2xl font-bold">Marketplace</h1>
             <p className="text-sm text-muted-foreground mt-0.5">Browse verified seller products</p>
@@ -74,6 +82,21 @@ const MarketplaceContent = () => {
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input placeholder="Search..." className="pl-9" value={search} onChange={e => setSearch(e.target.value)} />
           </div>
+        </div>
+
+        {/* Location filter chips */}
+        <div className="flex items-center gap-2 mb-6 flex-wrap">
+          <MapPin className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+          {LOCATIONS.map(loc => (
+            <Badge
+              key={loc}
+              variant={locationFilter === loc ? 'default' : 'outline'}
+              className="cursor-pointer text-xs"
+              onClick={() => setLocationFilter(loc)}
+            >
+              {loc}
+            </Badge>
+          ))}
         </div>
 
         {loading ? (
@@ -93,7 +116,7 @@ const MarketplaceContent = () => {
             <Package className="h-12 w-12 text-muted-foreground mx-auto mb-3" />
             <h3 className="font-semibold mb-1">No products found</h3>
             <p className="text-sm text-muted-foreground">
-              {products.length === 0 ? 'Be the first to list a product!' : 'Try a different search term.'}
+              {products.length === 0 ? 'Be the first to list a product!' : 'Try a different search term or location.'}
             </p>
           </div>
         ) : (
@@ -120,7 +143,14 @@ const MarketplaceContent = () => {
                   <CardContent className="p-3">
                     <h3 className="font-medium text-sm truncate">{product.title}</h3>
                     <p className="font-bold mt-1">₱{product.price.toLocaleString()}</p>
-                    <p className="text-[11px] text-muted-foreground mt-0.5">by {product.seller_name}</p>
+                    <Link to={`/seller/${product.user_id}`} className="text-[11px] text-muted-foreground mt-0.5 hover:underline" onClick={e => e.stopPropagation()}>
+                      by {product.seller_name}
+                    </Link>
+                    {product.location && (
+                      <p className="text-[11px] text-muted-foreground flex items-center gap-1 mt-0.5">
+                        <MapPin className="h-3 w-3" /> {product.location}
+                      </p>
+                    )}
                   </CardContent>
                 </Card>
               </Link>
