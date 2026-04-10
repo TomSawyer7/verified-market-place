@@ -14,7 +14,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import {
   ShieldCheck, ShieldAlert, Users, CheckCircle, XCircle, Clock,
   ChevronDown, Eye, UserPlus, Shield, AlertTriangle, Activity,
-  Lock, Fingerprint, Globe, FileImage, User, ScanFace
+  Lock, Fingerprint, Globe, FileImage, User, ScanFace, Flag, Trash2
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -63,14 +63,27 @@ interface LoginAttempt {
   created_at: string;
 }
 
+interface ReportedListing {
+  id: string;
+  reporter_id: string;
+  product_id: string;
+  reason: string;
+  description: string | null;
+  status: string;
+  created_at: string;
+  product_title?: string;
+  reporter_name?: string;
+}
+
 const AdminDashboard = () => {
   const { isAdmin, user } = useAuth();
   const navigate = useNavigate();
   const [verifications, setVerifications] = useState<VerificationRow[]>([]);
   const [securityEvents, setSecurityEvents] = useState<SecurityEvent[]>([]);
   const [loginAttempts, setLoginAttempts] = useState<LoginAttempt[]>([]);
+  const [reports, setReports] = useState<ReportedListing[]>([]);
   const [loading, setLoading] = useState(true);
-  const [stats, setStats] = useState({ total: 0, pending: 0, verified: 0, secEvents: 0, failedLogins: 0 });
+  const [stats, setStats] = useState({ total: 0, pending: 0, verified: 0, secEvents: 0, failedLogins: 0, pendingReports: 0 });
   const [adminEmail, setAdminEmail] = useState('');
   const [promoting, setPromoting] = useState(false);
   const [rejectDialog, setRejectDialog] = useState<{ open: boolean; verificationId: string; userId: string; field: 'philsys_status' | 'biometric_status' }>({ open: false, verificationId: '', userId: '', field: 'philsys_status' });
@@ -82,10 +95,11 @@ const AdminDashboard = () => {
   }, [isAdmin, navigate]);
 
   const fetchData = async () => {
-    const [vRes, seRes, laRes] = await Promise.all([
+    const [vRes, seRes, laRes, rpRes] = await Promise.all([
       supabase.from('verifications').select('*'),
       supabase.from('security_events').select('*').order('created_at', { ascending: false }).limit(50),
       supabase.from('login_attempts').select('*').order('created_at', { ascending: false }).limit(100),
+      supabase.from('reported_listings').select('*').order('created_at', { ascending: false }),
     ]);
 
     const vData = vRes.data || [];
@@ -96,6 +110,26 @@ const AdminDashboard = () => {
     setSecurityEvents((seRes.data || []) as SecurityEvent[]);
     setLoginAttempts((laRes.data || []) as LoginAttempt[]);
 
+    // Enrich reports
+    const rpData = (rpRes.data || []) as any[];
+    if (rpData.length > 0) {
+      const productIds = [...new Set(rpData.map(r => r.product_id))];
+      const reporterIds = [...new Set(rpData.map(r => r.reporter_id))];
+      const [{ data: products }, { data: reporters }] = await Promise.all([
+        supabase.from('products').select('id, title').in('id', productIds),
+        supabase.from('profiles').select('id, first_name, last_name').in('id', reporterIds),
+      ]);
+      const prodMap = new Map((products || []).map(p => [p.id, p.title] as const));
+      const repMap = new Map((reporters || []).map(r => [r.id, `${r.first_name} ${r.last_name}`] as const));
+      setReports(rpData.map(r => ({
+        ...r,
+        product_title: prodMap.get(r.product_id) || 'Deleted product',
+        reporter_name: repMap.get(r.reporter_id) || 'Unknown',
+      })));
+    } else {
+      setReports([]);
+    }
+
     const failedLogins = (laRes.data || []).filter((a: any) => !a.success).length;
     setStats({
       total: enriched.length,
@@ -103,6 +137,7 @@ const AdminDashboard = () => {
       verified: enriched.filter(v => v.philsys_status === 'verified' && v.biometric_status === 'verified').length,
       secEvents: (seRes.data || []).filter((e: any) => e.severity === 'warning' || e.severity === 'critical').length,
       failedLogins,
+      pendingReports: rpData.filter(r => r.status === 'pending').length,
     });
     setLoading(false);
   };
