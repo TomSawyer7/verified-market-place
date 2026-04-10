@@ -333,6 +333,9 @@ const AdminDashboard = () => {
           <TabsTrigger value="logins" className="gap-1 text-xs">
             <Lock className="h-3 w-3" /> Login Attempts
           </TabsTrigger>
+          <TabsTrigger value="reports" className="gap-1 text-xs">
+            <Flag className="h-3 w-3" /> Reports ({pendingReports.length})
+          </TabsTrigger>
         </TabsList>
 
         {/* Verification Reviews */}
