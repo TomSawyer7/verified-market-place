@@ -1,19 +1,44 @@
+import { useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
-import { Shield, LogOut, LayoutDashboard, User, Plus, Store, ShieldCheck, MessageCircle } from 'lucide-react';
-import { Badge } from '@/components/ui/badge';
+import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
+import { Shield, LogOut, LayoutDashboard, User, Plus, Store, ShieldCheck, MessageCircle, Menu } from 'lucide-react';
 import { NotificationBell } from '@/components/NotificationBell';
+import { useIsMobile } from '@/hooks/use-mobile';
 
 export const Navbar = () => {
   const { isAuthenticated, isAdmin, isVerified, profile, signOut } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
+  const isMobile = useIsMobile();
+  const [open, setOpen] = useState(false);
 
   const handleSignOut = async () => {
     await signOut();
+    setOpen(false);
     navigate('/');
   };
+
+  const navItems = [
+    { to: '/marketplace', icon: Store, label: 'Market', show: true },
+    { to: '/create-listing', icon: Plus, label: 'Sell', show: isVerified },
+    { to: '/messages', icon: MessageCircle, label: 'Chat', show: true },
+    { to: '/verification', icon: Shield, label: 'Verify', show: true },
+    { to: '/admin', icon: LayoutDashboard, label: 'Admin', show: isAdmin },
+  ];
+
+  const NavLinks = ({ onClick }: { onClick?: () => void }) => (
+    <>
+      {navItems.filter(n => n.show).map(item => (
+        <Link key={item.to} to={item.to} onClick={onClick}>
+          <Button variant="ghost" size="sm" className={`w-full justify-start ${location.pathname === item.to ? 'bg-muted' : ''}`}>
+            <item.icon className="h-4 w-4 mr-1.5" /> {item.label}
+          </Button>
+        </Link>
+      ))}
+    </>
+  );
 
   return (
     <header className="sticky top-0 z-50 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
@@ -25,38 +50,35 @@ export const Navbar = () => {
           <span className="font-bold text-base tracking-tight">TrustMart</span>
         </Link>
 
-        <nav className="flex items-center gap-1">
-          {isAuthenticated ? (
-            <>
-              <Link to="/marketplace">
-                <Button variant="ghost" size="sm" className={location.pathname === '/marketplace' ? 'bg-muted' : ''}>
-                  <Store className="h-4 w-4 mr-1.5" /> Market
-                </Button>
-              </Link>
-              {isVerified && (
-                <Link to="/create-listing">
-                  <Button variant="ghost" size="sm" className={location.pathname === '/create-listing' ? 'bg-muted' : ''}>
-                    <Plus className="h-4 w-4 mr-1.5" /> Sell
+        {isAuthenticated ? (
+          isMobile ? (
+            <div className="flex items-center gap-1">
+              <NotificationBell />
+              <Sheet open={open} onOpenChange={setOpen}>
+                <SheetTrigger asChild>
+                  <Button variant="ghost" size="icon" className="h-8 w-8">
+                    <Menu className="h-5 w-5" />
                   </Button>
-                </Link>
-              )}
-              <Link to="/messages">
-                <Button variant="ghost" size="sm" className={location.pathname === '/messages' ? 'bg-muted' : ''}>
-                  <MessageCircle className="h-4 w-4 mr-1.5" /> Chat
-                </Button>
-              </Link>
-              <Link to="/verification">
-                <Button variant="ghost" size="sm" className={location.pathname === '/verification' ? 'bg-muted' : ''}>
-                  <Shield className="h-4 w-4 mr-1.5" /> Verify
-                </Button>
-              </Link>
-              {isAdmin && (
-                <Link to="/admin">
-                  <Button variant="ghost" size="sm" className={location.pathname === '/admin' ? 'bg-muted' : ''}>
-                    <LayoutDashboard className="h-4 w-4 mr-1.5" /> Admin
-                  </Button>
-                </Link>
-              )}
+                </SheetTrigger>
+                <SheetContent side="right" className="w-64 pt-10">
+                  <nav className="flex flex-col gap-1">
+                    <NavLinks onClick={() => setOpen(false)} />
+                    <div className="border-t my-2" />
+                    <Link to="/profile" onClick={() => setOpen(false)}>
+                      <Button variant="ghost" size="sm" className="w-full justify-start">
+                        <User className="h-4 w-4 mr-1.5" /> Profile
+                      </Button>
+                    </Link>
+                    <Button variant="ghost" size="sm" className="w-full justify-start text-destructive" onClick={handleSignOut}>
+                      <LogOut className="h-4 w-4 mr-1.5" /> Sign Out
+                    </Button>
+                  </nav>
+                </SheetContent>
+              </Sheet>
+            </div>
+          ) : (
+            <nav className="flex items-center gap-1">
+              <NavLinks />
               <div className="flex items-center gap-1 ml-1 pl-2 border-l">
                 <NotificationBell />
                 <Link to="/profile">
@@ -68,18 +90,18 @@ export const Navbar = () => {
                   <LogOut className="h-4 w-4" />
                 </Button>
               </div>
-            </>
-          ) : (
-            <>
-              <Link to="/login">
-                <Button variant="ghost" size="sm">Log in</Button>
-              </Link>
-              <Link to="/register">
-                <Button size="sm" className="bg-foreground text-background hover:bg-foreground/90">Sign up</Button>
-              </Link>
-            </>
-          )}
-        </nav>
+            </nav>
+          )
+        ) : (
+          <nav className="flex items-center gap-1">
+            <Link to="/login">
+              <Button variant="ghost" size="sm">Log in</Button>
+            </Link>
+            <Link to="/register">
+              <Button size="sm" className="bg-foreground text-background hover:bg-foreground/90">Sign up</Button>
+            </Link>
+          </nav>
+        )}
       </div>
     </header>
   );

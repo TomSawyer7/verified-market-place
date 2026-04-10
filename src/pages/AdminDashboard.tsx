@@ -107,10 +107,30 @@ const AdminDashboard = () => {
     setLoading(false);
   };
 
-  const getSignedUrl = (path: string | null) => {
+  const [signedUrls, setSignedUrls] = useState<Record<string, string>>({});
+
+  const getSignedUrl = async (path: string | null): Promise<string | null> => {
     if (!path) return null;
-    return supabase.storage.from('verification-docs').getPublicUrl(path).data.publicUrl;
+    if (signedUrls[path]) return signedUrls[path];
+    const { data } = await supabase.storage.from('verification-docs').createSignedUrl(path, 3600);
+    if (data?.signedUrl) {
+      setSignedUrls(prev => ({ ...prev, [path]: data.signedUrl }));
+      return data.signedUrl;
+    }
+    return null;
   };
+
+  // Pre-load signed URLs for pending verifications
+  useEffect(() => {
+    const loadUrls = async () => {
+      for (const v of verifications) {
+        if (v.id_front_url) await getSignedUrl(v.id_front_url);
+        if (v.id_back_url) await getSignedUrl(v.id_back_url);
+        if (v.selfie_url) await getSignedUrl(v.selfie_url);
+      }
+    };
+    if (verifications.length > 0) loadUrls();
+  }, [verifications]);
 
   const handleApprove = async (verificationId: string, userId: string) => {
     const ver = verifications.find(v => v.id === verificationId);
