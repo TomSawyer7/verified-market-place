@@ -296,6 +296,7 @@ const AdminDashboard = () => {
           { label: 'Verified', value: stats.verified, icon: ShieldCheck },
           { label: 'Security Alerts', value: stats.secEvents, icon: ShieldAlert },
           { label: 'Failed Logins', value: stats.failedLogins, icon: Lock },
+          { label: 'Reports', value: stats.pendingReports, icon: Flag },
         ].map((s, i) => (
           <Card key={i} className="border">
             <CardContent className="p-4 flex items-center gap-3">
@@ -309,6 +310,7 @@ const AdminDashboard = () => {
         ))}
       </div>
 
+      {/* Stats grid change: 5 -> 6 cols */}
       {/* Admin Promotion */}
       <Card className="mb-6 border">
         <CardContent className="p-4">
