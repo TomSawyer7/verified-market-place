@@ -1,119 +1,84 @@
 
 
-## Plan: Finalize, Polish, and Prepare for FaceTec Integration
+## Plan: Seller Profile Pages, Report Listing, and Location-Based Listings
 
-### Context
-The TrustMart.ph marketplace is a cybersecurity-focused capstone project with a 3-phase identity verification system, admin dashboard, messaging, and marketplace. The user wants to:
-1. Prepare the architecture for **FaceTec 3D/2D face and ID matching** integration (replacing the current face-api.js approach)
-2. Polish all existing features end-to-end
-3. Generate a **final technology report**
-
-### Important Note on FaceTec
-FaceTec requires a **commercial SDK license** and a **Device SDK Key** from facetec.com. The current face-api.js implementation will be refactored into an abstraction layer so FaceTec can be plugged in when the SDK license is obtained. We will create the integration scaffold and placeholder, but the actual FaceTec SDK cannot run without their proprietary license key.
+### Overview
+Three new features: public seller profiles with edit capability, a report listing system for flagging suspicious products, and location-based filtering on the marketplace.
 
 ---
 
-### Step 1: Create FaceTec Integration Scaffold
+### 1. Database Changes (Migration)
 
-Create `src/lib/facetec.ts` as an abstraction layer:
-- Define a `BiometricProvider` interface with methods: `initializeSDK()`, `performLivenessCheck()`, `performFaceMatch(idPhoto, selfie)`, `performIDScan()`
-- Implement a `FaceApiProvider` (current face-api.js logic) as default
-- Add a `FaceTecProvider` stub that logs instructions for when the SDK license is obtained
-- Export a factory function that selects the active provider
+**Add `location` column to `products` table:**
+```sql
+ALTER TABLE products ADD COLUMN location text DEFAULT NULL;
+```
 
-Update `src/pages/Verification.tsx` Phase 3:
-- Refactor liveness check to use the `BiometricProvider` interface instead of inline face-api.js code
-- Keep face-api.js as the active provider (works without license)
+**Create `reported_listings` table:**
+```sql
+CREATE TABLE reported_listings (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  reporter_id uuid NOT NULL,
+  product_id uuid NOT NULL,
+  reason text NOT NULL,
+  description text,
+  status text NOT NULL DEFAULT 'pending',
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+ALTER TABLE reported_listings ENABLE ROW LEVEL SECURITY;
+-- Users can insert their own reports
+-- Users can view their own reports
+-- Admins can view and update all reports
+```
 
-### Step 2: Polish Authentication Flow
-
-**Login page**: Fix edge cases - ensure "Remember Me" properly persists email, improve error messages for locked accounts vs wrong password vs unverified email
-
-**Register page**: Ensure password validation checklist is fully real-time, confirm password field validates on every keystroke, success state shows clear "Check your email" message
-
-**Forgot/Reset Password**: Verify reset flow works end-to-end, ensure token expiry messaging is clear
-
-### Step 3: Polish Verification Flow
-
-- Add loading skeletons during verification data fetch
-- Show admin rejection reason prominently with a "Re-submit" option
-- Improve Phase 2 form with proper validation (required fields, date picker format)
-- Add progress persistence - if user refreshes mid-flow, resume at correct phase
-
-### Step 4: Polish Admin Dashboard
-
-- Fix the verification review to properly display uploaded ID images from storage (signed URLs)
-- Ensure approve/reject actions send notifications to users
-- Add confirmation dialogs before approve/reject actions
-- Polish security events and login attempts tables with pagination
-
-### Step 5: Polish Marketplace and Product Pages
-
-- Ensure VerificationGate blocks all protected routes (messages, create-listing, product actions)
-- Fix product image display from storage
-- Polish seller reviews display and rating submission
-
-### Step 6: Polish Navbar and Responsive Design
-
-- Add mobile hamburger menu for the navbar (currently no mobile support)
-- Ensure all pages are responsive on mobile viewports
-
-### Step 7: Generate Final Technology Report
-
-Create a comprehensive PDF report at `/mnt/documents/TrustMart_Final_Report.pdf` covering:
-
-**Frontend Stack:**
-- React 18.3 + TypeScript 5.8
-- Vite 5.4 (build tool)
-- Tailwind CSS 3.4 + shadcn/ui (component library)
-- React Router DOM 6.30 (routing)
-- TanStack React Query 5.83 (server state)
-- React Hook Form 7.61 + Zod 3.25 (form validation)
-- Framer Motion 12.36 (animations)
-- face-api.js 0.22.2 (biometric liveness detection, face matching)
-- html5-qrcode 2.3 (QR scanning)
-- Recharts 2.15 (data visualization)
-- Lucide React (iconography)
-
-**Backend Stack:**
-- Supabase (PostgreSQL + Auth + Storage + Edge Functions + Realtime)
-- Row-Level Security (RLS) on all tables
-- Deno-based Edge Functions (setup-admin, verify-captcha)
-- JWT authentication with secure session management
-
-**Security Features:**
-- PhilSys National ID verification (3-phase)
-- Biometric liveness detection (face-api.js, FaceTec-ready)
-- Password strength enforcement (8+ chars, complexity rules)
-- HIBP breach detection
-- Brute force protection (rate limiting, 5-attempt lockout)
-- Input sanitization (XSS prevention)
-- RLS data isolation
-- Security event audit trail
-- Session monitoring and logging
-- Email verification required
-
-**Testing:**
-- Vitest (unit testing)
-- Playwright (E2E testing)
+**Add `bio` column to `profiles` table** (for seller profile editing):
+```sql
+ALTER TABLE profiles ADD COLUMN bio text DEFAULT '';
+```
 
 ---
 
-### Technical Details
+### 2. Seller Profile Page (`src/pages/SellerProfile.tsx`)
 
-**Files to create:**
-- `src/lib/facetec.ts` - BiometricProvider abstraction
-- Final report script (temporary, generates PDF)
+- **Route**: `/seller/:id` (public page, viewable by authenticated users)
+- **Display**: Avatar initials, full name, verification badge, bio, member since date, location
+- **Listings tab**: All active products by this seller in a grid
+- **Reviews tab**: All reviews for this seller using existing `SellerReviews` component
+- **Edit mode**: If the logged-in user is viewing their own profile, show an "Edit Profile" button that toggles inline editing for bio, mobile number, and address fields (updates `profiles` table)
 
-**Files to edit:**
-- `src/pages/Verification.tsx` - Refactor to use BiometricProvider, add polish
-- `src/pages/Login.tsx` - Edge case fixes
-- `src/pages/Register.tsx` - Real-time validation polish
-- `src/pages/AdminDashboard.tsx` - Signed URLs for images, notification on approve/reject
-- `src/components/Navbar.tsx` - Mobile responsive menu
-- `src/pages/Marketplace.tsx` - Polish product cards
-- `src/pages/ProductDetail.tsx` - Polish reviews section
-- `src/pages/Profile.tsx` - Add more profile details
+### 3. Report Listing Feature
 
-**No database changes needed** - the schema is complete.
+- **Report button** on `ProductDetail.tsx`: A flag icon button that opens a dialog
+- **Report dialog**: Reason dropdown (Suspicious listing, Counterfeit item, Misleading description, Scam, Other) + optional description textarea
+- **Inserts into `reported_listings`** table with the reporter's ID
+- **Admin Dashboard**: New "Reports" tab showing pending reports with product title, reporter, reason, and actions (Dismiss / Remove Listing)
+- Users cannot report their own listings (enforced via RLS)
+
+### 4. Location-Based Listings
+
+- **CreateListing.tsx**: Add a "Location" text input (city/province) to the listing form
+- **Marketplace.tsx**: Add location filter chips or a dropdown above the product grid; extend search to also match `location`
+- **Product cards**: Show location below seller name (small text with MapPin icon)
+- **ProductDetail.tsx**: Show location in product details
+
+---
+
+### 5. Route & Nav Updates
+
+- Add `/seller/:id` route to `App.tsx`
+- Link seller names in `ProductDetail.tsx` and `Marketplace.tsx` to `/seller/:id`
+
+### Files to Create
+- `src/pages/SellerProfile.tsx`
+
+### Files to Edit
+- `src/App.tsx` (add route)
+- `src/pages/ProductDetail.tsx` (add report button + dialog, location display, link seller name)
+- `src/pages/Marketplace.tsx` (location filter, show location on cards, link seller name)
+- `src/pages/CreateListing.tsx` (add location input)
+- `src/pages/AdminDashboard.tsx` (add Reports tab)
+- `src/components/Navbar.tsx` (optionally add "My Profile" link)
+
+### Database Migration
+- Add `location` to `products`, `bio` to `profiles`, create `reported_listings` table with RLS
 
