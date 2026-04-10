@@ -128,18 +128,16 @@ const Login = () => {
               </div>
             </div>
             <div className="space-y-1.5">
-              <div className="flex items-center justify-between">
-                <Label htmlFor="password" className="text-xs">Password</Label>
-                <Link to="/forgot-password" className="text-[11px] text-muted-foreground hover:text-foreground underline underline-offset-2" tabIndex={-1}>
-                  Forgot password?
-                </Link>
-              </div>
+              <Label htmlFor="password" className="text-xs">Password</Label>
               <div className="relative">
                 <Input id="password" type={showPassword ? 'text' : 'password'} placeholder="••••••••" value={password} onChange={e => setPassword(e.target.value)} required disabled={locked} aria-label="Password" />
                 <Button type="button" variant="ghost" size="icon" className="absolute right-0 top-0 h-10 w-10" onClick={() => setShowPassword(!showPassword)} aria-label={showPassword ? 'Hide password' : 'Show password'} tabIndex={-1}>
                   {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                 </Button>
               </div>
+              <Link to="/forgot-password" className="text-[11px] text-muted-foreground hover:text-foreground underline underline-offset-2 block text-right" tabIndex={-1}>
+                Forgot password?
+              </Link>
             </div>
             <div className="flex items-center space-x-2">
               <Checkbox id="remember" checked={rememberMe} onCheckedChange={(c) => setRememberMe(!!c)} aria-label="Remember me" />
