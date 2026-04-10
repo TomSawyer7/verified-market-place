@@ -245,10 +245,25 @@ const AdminDashboard = () => {
     setPromoting(false);
   };
 
+  const handleDismissReport = async (reportId: string) => {
+    await supabase.from('reported_listings').update({ status: 'dismissed' } as any).eq('id', reportId);
+    toast.success('Report dismissed');
+    fetchData();
+  };
+
+  const handleRemoveListing = async (reportId: string, productId: string) => {
+    await supabase.from('products').update({ status: 'removed' }).eq('id', productId);
+    await supabase.from('reported_listings').update({ status: 'resolved' } as any).eq('id', reportId);
+    toast.success('Listing removed');
+    fetchData();
+  };
+
   const pendingVerifications = verifications.filter(v =>
     (v.id_front_url && v.id_last_name && v.selfie_url) &&
     (v.philsys_status === 'pending' || v.biometric_status === 'pending')
   );
+
+  const pendingReports = reports.filter(r => r.status === 'pending');
 
   const severityColor = (s: string) => {
     if (s === 'critical') return 'text-red-600 bg-red-50';
