@@ -14,7 +14,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import {
   ShieldCheck, ShieldAlert, Users, CheckCircle, XCircle, Clock,
   ChevronDown, Eye, UserPlus, Shield, AlertTriangle, Activity,
-  Lock, Fingerprint, Globe, FileImage, User, ScanFace
+  Lock, Fingerprint, Globe, FileImage, User, ScanFace, Flag, Trash2
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -63,14 +63,27 @@ interface LoginAttempt {
   created_at: string;
 }
 
+interface ReportedListing {
+  id: string;
+  reporter_id: string;
+  product_id: string;
+  reason: string;
+  description: string | null;
+  status: string;
+  created_at: string;
+  product_title?: string;
+  reporter_name?: string;
+}
+
 const AdminDashboard = () => {
   const { isAdmin, user } = useAuth();
   const navigate = useNavigate();
   const [verifications, setVerifications] = useState<VerificationRow[]>([]);
   const [securityEvents, setSecurityEvents] = useState<SecurityEvent[]>([]);
   const [loginAttempts, setLoginAttempts] = useState<LoginAttempt[]>([]);
+  const [reports, setReports] = useState<ReportedListing[]>([]);
   const [loading, setLoading] = useState(true);
-  const [stats, setStats] = useState({ total: 0, pending: 0, verified: 0, secEvents: 0, failedLogins: 0 });
+  const [stats, setStats] = useState({ total: 0, pending: 0, verified: 0, secEvents: 0, failedLogins: 0, pendingReports: 0 });
   const [adminEmail, setAdminEmail] = useState('');
   const [promoting, setPromoting] = useState(false);
   const [rejectDialog, setRejectDialog] = useState<{ open: boolean; verificationId: string; userId: string; field: 'philsys_status' | 'biometric_status' }>({ open: false, verificationId: '', userId: '', field: 'philsys_status' });
@@ -82,10 +95,11 @@ const AdminDashboard = () => {
   }, [isAdmin, navigate]);
 
   const fetchData = async () => {
-    const [vRes, seRes, laRes] = await Promise.all([
+    const [vRes, seRes, laRes, rpRes] = await Promise.all([
       supabase.from('verifications').select('*'),
       supabase.from('security_events').select('*').order('created_at', { ascending: false }).limit(50),
       supabase.from('login_attempts').select('*').order('created_at', { ascending: false }).limit(100),
+      supabase.from('reported_listings').select('*').order('created_at', { ascending: false }),
     ]);
 
     const vData = vRes.data || [];
@@ -96,6 +110,26 @@ const AdminDashboard = () => {
     setSecurityEvents((seRes.data || []) as SecurityEvent[]);
     setLoginAttempts((laRes.data || []) as LoginAttempt[]);
 
+    // Enrich reports
+    const rpData = (rpRes.data || []) as any[];
+    if (rpData.length > 0) {
+      const productIds = [...new Set(rpData.map(r => r.product_id))];
+      const reporterIds = [...new Set(rpData.map(r => r.reporter_id))];
+      const [{ data: products }, { data: reporters }] = await Promise.all([
+        supabase.from('products').select('id, title').in('id', productIds),
+        supabase.from('profiles').select('id, first_name, last_name').in('id', reporterIds),
+      ]);
+      const prodMap = new Map((products || []).map(p => [p.id, p.title] as const));
+      const repMap = new Map((reporters || []).map(r => [r.id, `${r.first_name} ${r.last_name}`] as const));
+      setReports(rpData.map(r => ({
+        ...r,
+        product_title: prodMap.get(r.product_id) || 'Deleted product',
+        reporter_name: repMap.get(r.reporter_id) || 'Unknown',
+      })));
+    } else {
+      setReports([]);
+    }
+
     const failedLogins = (laRes.data || []).filter((a: any) => !a.success).length;
     setStats({
       total: enriched.length,
@@ -103,6 +137,7 @@ const AdminDashboard = () => {
       verified: enriched.filter(v => v.philsys_status === 'verified' && v.biometric_status === 'verified').length,
       secEvents: (seRes.data || []).filter((e: any) => e.severity === 'warning' || e.severity === 'critical').length,
       failedLogins,
+      pendingReports: rpData.filter(r => r.status === 'pending').length,
     });
     setLoading(false);
   };
@@ -210,10 +245,25 @@ const AdminDashboard = () => {
     setPromoting(false);
   };
 
+  const handleDismissReport = async (reportId: string) => {
+    await supabase.from('reported_listings').update({ status: 'dismissed' } as any).eq('id', reportId);
+    toast.success('Report dismissed');
+    fetchData();
+  };
+
+  const handleRemoveListing = async (reportId: string, productId: string) => {
+    await supabase.from('products').update({ status: 'removed' }).eq('id', productId);
+    await supabase.from('reported_listings').update({ status: 'resolved' } as any).eq('id', reportId);
+    toast.success('Listing removed');
+    fetchData();
+  };
+
   const pendingVerifications = verifications.filter(v =>
     (v.id_front_url && v.id_last_name && v.selfie_url) &&
     (v.philsys_status === 'pending' || v.biometric_status === 'pending')
   );
+
+  const pendingReports = reports.filter(r => r.status === 'pending');
 
   const severityColor = (s: string) => {
     if (s === 'critical') return 'text-red-600 bg-red-50';
@@ -239,13 +289,14 @@ const AdminDashboard = () => {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-6">
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 mb-6">
         {[
           { label: 'Total Users', value: stats.total, icon: Users },
           { label: 'Pending', value: stats.pending, icon: Clock },
           { label: 'Verified', value: stats.verified, icon: ShieldCheck },
           { label: 'Security Alerts', value: stats.secEvents, icon: ShieldAlert },
           { label: 'Failed Logins', value: stats.failedLogins, icon: Lock },
+          { label: 'Reports', value: stats.pendingReports, icon: Flag },
         ].map((s, i) => (
           <Card key={i} className="border">
             <CardContent className="p-4 flex items-center gap-3">
@@ -258,7 +309,6 @@ const AdminDashboard = () => {
           </Card>
         ))}
       </div>
-
       {/* Admin Promotion */}
       <Card className="mb-6 border">
         <CardContent className="p-4">
@@ -282,6 +332,9 @@ const AdminDashboard = () => {
           </TabsTrigger>
           <TabsTrigger value="logins" className="gap-1 text-xs">
             <Lock className="h-3 w-3" /> Login Attempts
+          </TabsTrigger>
+          <TabsTrigger value="reports" className="gap-1 text-xs">
+            <Flag className="h-3 w-3" /> Reports ({pendingReports.length})
           </TabsTrigger>
         </TabsList>
 
@@ -447,6 +500,41 @@ const AdminDashboard = () => {
                 </tbody>
               </table>
             </div>
+          )}
+        </TabsContent>
+
+        {/* Reports Tab */}
+        <TabsContent value="reports" className="space-y-3 mt-4">
+          {pendingReports.length === 0 ? (
+            <p className="text-center py-8 text-sm text-muted-foreground">No pending reports</p>
+          ) : (
+            pendingReports.map(r => (
+              <Card key={r.id} className="border">
+                <CardContent className="p-4">
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium text-sm">{r.product_title}</p>
+                      <div className="flex items-center gap-2 mt-1">
+                        <Badge variant="secondary" className="text-[10px]">{r.reason}</Badge>
+                        <span className="text-[11px] text-muted-foreground">by {r.reporter_name}</span>
+                      </div>
+                      {r.description && (
+                        <p className="text-xs text-muted-foreground mt-2">{r.description}</p>
+                      )}
+                      <p className="text-[11px] text-muted-foreground mt-1">{new Date(r.created_at).toLocaleString()}</p>
+                    </div>
+                    <div className="flex gap-2 flex-shrink-0">
+                      <Button size="sm" variant="outline" className="text-xs" onClick={() => handleDismissReport(r.id)}>
+                        Dismiss
+                      </Button>
+                      <Button size="sm" variant="destructive" className="text-xs gap-1" onClick={() => handleRemoveListing(r.id, r.product_id)}>
+                        <Trash2 className="h-3 w-3" /> Remove Listing
+                      </Button>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            ))
           )}
         </TabsContent>
       </Tabs>

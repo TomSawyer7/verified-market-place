@@ -205,6 +205,7 @@ export type Database = {
           description: string | null
           id: string
           image_url: string | null
+          location: string | null
           price: number
           status: string
           title: string
@@ -217,6 +218,7 @@ export type Database = {
           description?: string | null
           id?: string
           image_url?: string | null
+          location?: string | null
           price?: number
           status?: string
           title: string
@@ -229,6 +231,7 @@ export type Database = {
           description?: string | null
           id?: string
           image_url?: string | null
+          location?: string | null
           price?: number
           status?: string
           title?: string
@@ -241,6 +244,7 @@ export type Database = {
         Row: {
           address: string | null
           avatar_url: string | null
+          bio: string | null
           birthday: string | null
           created_at: string
           first_name: string
@@ -254,6 +258,7 @@ export type Database = {
         Insert: {
           address?: string | null
           avatar_url?: string | null
+          bio?: string | null
           birthday?: string | null
           created_at?: string
           first_name?: string
@@ -267,6 +272,7 @@ export type Database = {
         Update: {
           address?: string | null
           avatar_url?: string | null
+          bio?: string | null
           birthday?: string | null
           created_at?: string
           first_name?: string
@@ -278,6 +284,44 @@ export type Database = {
           updated_at?: string
         }
         Relationships: []
+      }
+      reported_listings: {
+        Row: {
+          created_at: string
+          description: string | null
+          id: string
+          product_id: string
+          reason: string
+          reporter_id: string
+          status: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          product_id: string
+          reason: string
+          reporter_id: string
+          status?: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          product_id?: string
+          reason?: string
+          reporter_id?: string
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "reported_listings_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       reviews: {
         Row: {

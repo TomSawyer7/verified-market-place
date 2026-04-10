@@ -9,7 +9,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from 'sonner';
-import { Package, Upload } from 'lucide-react';
+import { Package, Upload, MapPin } from 'lucide-react';
 
 const CATEGORIES = ['Electronics', 'Fashion', 'Home & Living', 'Sports', 'Books', 'Toys', 'Automotive', 'General'];
 
@@ -20,6 +20,7 @@ const CreateListing = () => {
   const [description, setDescription] = useState('');
   const [price, setPrice] = useState('');
   const [category, setCategory] = useState('General');
+  const [location, setLocation] = useState('');
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -56,8 +57,9 @@ const CreateListing = () => {
       description,
       price: parseFloat(price),
       category,
+      location: location || null,
       image_url: imageUrl,
-    });
+    } as any);
 
     setLoading(false);
     if (error) {
@@ -99,6 +101,10 @@ const CreateListing = () => {
                   </SelectContent>
                 </Select>
               </div>
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="location" className="text-xs flex items-center gap-1"><MapPin className="h-3 w-3" /> Location</Label>
+              <Input id="location" placeholder="City, Province" value={location} onChange={e => setLocation(e.target.value)} />
             </div>
             <div className="space-y-1.5">
               <Label className="text-xs">Product Image</Label>

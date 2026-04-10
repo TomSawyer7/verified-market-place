@@ -18,6 +18,7 @@ import Profile from "./pages/Profile";
 import Messages from "./pages/Messages";
 import AdminDashboard from "./pages/AdminDashboard";
 import NotFound from "./pages/NotFound";
+import SellerProfile from "./pages/SellerProfile";
 
 const queryClient = new QueryClient();
 
@@ -38,6 +39,7 @@ const App = () => (
             <Route path="/marketplace" element={<Marketplace />} />
             <Route path="/product/:id" element={<ProductDetail />} />
             <Route path="/create-listing" element={<CreateListing />} />
+            <Route path="/seller/:id" element={<SellerProfile />} />
             <Route path="/verification" element={<Verification />} />
             <Route path="/profile" element={<Profile />} />
             <Route path="/messages" element={<Messages />} />
