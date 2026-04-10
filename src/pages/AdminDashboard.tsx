@@ -502,6 +502,41 @@ const AdminDashboard = () => {
             </div>
           )}
         </TabsContent>
+
+        {/* Reports Tab */}
+        <TabsContent value="reports" className="space-y-3 mt-4">
+          {pendingReports.length === 0 ? (
+            <p className="text-center py-8 text-sm text-muted-foreground">No pending reports</p>
+          ) : (
+            pendingReports.map(r => (
+              <Card key={r.id} className="border">
+                <CardContent className="p-4">
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium text-sm">{r.product_title}</p>
+                      <div className="flex items-center gap-2 mt-1">
+                        <Badge variant="secondary" className="text-[10px]">{r.reason}</Badge>
+                        <span className="text-[11px] text-muted-foreground">by {r.reporter_name}</span>
+                      </div>
+                      {r.description && (
+                        <p className="text-xs text-muted-foreground mt-2">{r.description}</p>
+                      )}
+                      <p className="text-[11px] text-muted-foreground mt-1">{new Date(r.created_at).toLocaleString()}</p>
+                    </div>
+                    <div className="flex gap-2 flex-shrink-0">
+                      <Button size="sm" variant="outline" className="text-xs" onClick={() => handleDismissReport(r.id)}>
+                        Dismiss
+                      </Button>
+                      <Button size="sm" variant="destructive" className="text-xs gap-1" onClick={() => handleRemoveListing(r.id, r.product_id)}>
+                        <Trash2 className="h-3 w-3" /> Remove Listing
+                      </Button>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            ))
+          )}
+        </TabsContent>
       </Tabs>
 
       {/* Reject Dialog */}
