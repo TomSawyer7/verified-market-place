@@ -289,7 +289,7 @@ const AdminDashboard = () => {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-6">
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 mb-6">
         {[
           { label: 'Total Users', value: stats.total, icon: Users },
           { label: 'Pending', value: stats.pending, icon: Clock },
@@ -309,8 +309,6 @@ const AdminDashboard = () => {
           </Card>
         ))}
       </div>
-
-      {/* Stats grid change: 5 -> 6 cols */}
       {/* Admin Promotion */}
       <Card className="mb-6 border">
         <CardContent className="p-4">
