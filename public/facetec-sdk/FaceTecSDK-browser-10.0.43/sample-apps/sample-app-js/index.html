@@ -1,0 +1,136 @@
+ <!-- Welcome to the FaceTec Browser Sample App
+
+ This sample demonstrates Initialization, Liveness Check, Enrollment, Verification, Photo ID Match, Customizing the UX
+
+ Please use our technical support form to submit questions and issue reports:  https://dev.facetec.com/support -->
+<!DOCTYPE html>
+<head>
+  <title>Browser SDK - Sample App</title>
+  <meta charset="utf-8" />
+  <link rel="icon" href="../../sample-app-resources/images/favicon.ico">
+  <meta name="viewport" content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0">
+  <style>
+    @import url('https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,500,500i,700,700i,900,900i');
+  </style>
+  <link rel="stylesheet" href="./css/style.css?v1">
+  <!-- Add iOS meta tags and icons -->
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black">
+  <meta name="apple-mobile-web-app-title" content="Browser SDK - Sample App">
+  <script type="text/javascript" src="../../sample-app-resources/js/very-old-browser-check.js"></script>
+  <script type="module">
+		import { Config } from "../../Config.js";
+		window.Config = Config;
+	</script>
+	<script>
+		fetch('../../sample-app-resources/FaceTec_OCR_Customization.json')
+		.then(response => {
+				return response.json();
+		})
+		.then(data => window.ocrLocalizationJSON = data);
+	</script>
+	<script src="../../core-sdk/FaceTecSDK.js/FaceTecSDK.js"></script>
+	<script type="text/javascript" src="./utilities/SampleAppUIFunctions.js"></script>
+	<script type="text/javascript" src="./utilities/SampleAppUtilities.js"></script>
+	<script type="text/javascript" src="./utilities/ThemeHelpers.js"></script>
+	<script type="text/javascript" src="./utilities/SoundFileUtilities.js"></script>
+	<script type="text/javascript" src="./utilities/FaceTecStatusEnumFriendlyText.js"></script>
+	<script type="text/javascript" src="./utilities/DeveloperStatusMessages.js"></script>
+	<script type="text/javascript" src="./utilities/SampleAppNetworkingRequest.js"></script>
+	<script type="text/javascript" src="./SessionRequestProcessor.js"></script>
+	<script type="text/javascript" src="./SampleAppController.js?v1"></script>
+	<script >
+		const upgrade_png = '../../sample-app-resources/images/upgrade.png'
+		const facescan_successful_sound_file_mp3 = '../../sample-app-resources/Vocal_Guidance_Audio_Files/facescan_successful_sound_file.mp3'
+		const please_frame_your_face_sound_file_mp3 = '../../sample-app-resources/Vocal_Guidance_Audio_Files/please_frame_your_face_sound_file.mp3'
+		const please_move_closer_sound_file_mp3 = '../../sample-app-resources/Vocal_Guidance_Audio_Files/please_move_closer_sound_file.mp3'
+		const please_press_button_sound_file_mp3 = '../../sample-app-resources/Vocal_Guidance_Audio_Files/please_press_button_sound_file.mp3'
+		const please_retry_sound_file_mp3 = '../../sample-app-resources/Vocal_Guidance_Audio_Files/please_retry_sound_file.mp3'
+		const uploading_sound_file_mp3 = '../../sample-app-resources/Vocal_Guidance_Audio_Files/uploading_sound_file.mp3'
+	</script >
+</head>
+<body>
+  <div class="wrapping-box-container">
+    <div id="main-interface">
+      <div id="controls">
+        <div id="vocal-icon-container" class="ft-button">
+          <div><img id="vocal-guidance-icon-minimal" aria-label="Minimal Vocal Guidance Enabled" disabled class="vocal-icon" src="../../sample-app-resources/images/vocal_minimal.png" onclick="sampleAppController.onVocalGuidanceSettingsButtonPressed()"></div>
+          <div><img id="vocal-guidance-icon-full" aria-label="Full Vocal Guidance Enabled" disabled class="vocal-icon vocal-guidance-icon-full display-none" src="../../sample-app-resources/images/vocal_full.png" onclick="sampleAppController.onVocalGuidanceSettingsButtonPressed()"></div>
+          <div><img id="vocal-guidance-icon-off"  aria-label="Vocal Guidance Disabled"disabled class="vocal-icon vocal-guidance-icon-off display-none" src="../../sample-app-resources/images/vocal_off.png" onclick="sampleAppController.onVocalGuidanceSettingsButtonPressed()"></div>
+        </div>
+        <button id="liveness-button" disabled onclick="sampleAppController.onLivenessCheckPressed()" class="big-button ft-button">3D Liveness Check</button>
+        <button id="enroll-button" disabled onclick="sampleAppController.onEnrollUserPressed()" class="big-button ft-button">Enroll 3D User</button>
+        <button id="verify-button" disabled onclick="sampleAppController.onVerifyUserPressed()" class="big-button ft-button">Re-Verify 3D User</button>
+        <button id="id-scan-button" disabled onclick="sampleAppController.onPhotoIDMatchPressed()" class="big-button ft-button">Match Face To ID</button>
+        <button id="photo-id-scan-button" disabled onclick="sampleAppController.onPhotoIDScanPressed()" class="big-button ft-button">Scan & OCR ID</button>
+        <button id="official-id-photo-button" disabled onclick="sampleAppController.onOfficialIDPhotoPressed()" class="big-button ft-button">Take Passport Photo</button>
+        <button id="design-showcase-button" disabled onclick="sampleAppController.onDesignShowcasePressed()" class="medium-button ft-button">Customize Colors & Themes</button>
+        <p id="status" aria-live="polite">Initializing...</p>
+      </div>
+      <div id="official-id-photo-container">
+        <div id="official-id-photo-intro-container" class="display-none">
+          <div id="official-id-photo-intro-container-content">
+            <h1 id="official-id-photo-intro-header-text">Let's Take Your&#10;Official ID Photo!</h1>
+            <span class="official-id-photo-intro-span">Official ID Photos have specific&#10;guidelines set by the ICAO.</span>
+            <span class="official-id-photo-intro-span">Please follow the instructions below:</span>
+            <div id="official-id-photo-intro-container-instructions">
+              <div class="official-id-photo-intro-instruction-item-container">
+                <img class="official-id-photo-intro-instruction-item-img" src="../../sample-app-resources/images/light_bulb.png">
+                <span class="official-id-photo-intro-instruction-item-span">Even, Indoor Lighting</span>
+              </div>
+              <div class="official-id-photo-intro-instruction-item-container">
+                <img class="official-id-photo-intro-instruction-item-img" src="../../sample-app-resources/images/billed_cap.png">
+                <span class="official-id-photo-intro-instruction-item-span">No Headwear</span>
+              </div>
+              <div class="official-id-photo-intro-instruction-item-container">
+                <img class="official-id-photo-intro-instruction-item-img" src="../../sample-app-resources/images/sunglasses.png">
+                <span class="official-id-photo-intro-instruction-item-span">No Sunglasses</span>
+              </div>
+              <div class="official-id-photo-intro-instruction-item-container">
+                <img class="official-id-photo-intro-instruction-item-img" src="../../sample-app-resources/images/glasses.png">
+                <span class="official-id-photo-intro-instruction-item-span">No Glare in Eyeglasses</span>
+              </div>
+              <div class="official-id-photo-intro-instruction-item-container">
+                <img class="official-id-photo-intro-instruction-item-img" src="../../sample-app-resources/images/person.png">
+                <span class="official-id-photo-intro-instruction-item-span">Neutral Facial Expression</span>
+              </div>
+            </div>
+          </div>
+          <button id="official-id-photo-intro-continue-button" onclick="sampleAppController.onContinueOfficialIDPhotoPressed()"
+            class="big-button browser-button ft-button" disabled>CONTINUE</button>
+        </div>
+        <div id="official-id-photo-result-container" class="display-none">
+          <div id="official-id-photo-result-container-content">
+            <h1 id="official-id-photo-result-header-text">Congratulations!</h1>
+            <span class="official-id-photo-result-span">Here's your Official ID Photo</span>
+            <div>
+              <img id="official-id-photo-result-image">
+            </div>
+          </div>
+          <button id="official-id-photo-result-download-button" onclick="sampleAppController.onDownloadOfficialIDPhotoPressed()"
+          class="big-button browser-button ft-button" disabled>DOWNLOAD ID PHOTO</button>
+        </div>
+      </div>
+    </div>
+    <div id="custom-logo-container"  aria-hidden="true" tabindex="-1">
+      <img src="../../sample-app-resources/images/FaceTec_Logo.png">
+    </div>
+  </div>
+  <div id="official-id-photo-session-cancel-container" class="display-none">
+    <button id="official-id-photo-session-cancel-button" disabled onclick="sampleAppController.onCancelOfficialIDPhotoPressed()">
+      <img src="../../sample-app-resources/images/FaceTec_cancel.png">
+    </button>
+  </div>
+  <footer>
+    <span id="copy-right-section">
+      <p id="copy-right" class="footer-element-margin">&copy; 2026 FaceTec, Inc. &thinsp;&middot;&thinsp; Multiple US & International Patents Granted&thinsp;&middot;&thinsp; All Rights Reserved</p>
+      <hr class="hr display-none footer-element-margin" aria-hidden="true" tabindex="-1"></hr>
+      <p class="footer-element-margin"><a href="https://dev.facetec.com/policies/terms.html" target="_blank">Terms &amp; Conditions</a>&thinsp;&middot;&thinsp; <a href="https://dev.facetec.com/policies/privacy_site.html" target="_blank">Site Privacy Policy</a>&thinsp;&middot;&thinsp; <a href=https://dev.facetec.com/policies/privacy_sdk.html target="_blank">SDK Privacy Policy</a></p>
+    </span>
+  </footer>
+  <div id="copy-right-length" aria-hidden="true" tabindex="-1">&copy; 2026 FaceTec, Inc. &thinsp;&middot;&thinsp; Multiple US & International Patents Granted&thinsp;&middot;&thinsp; All Rights Reserved</div>
+  <div id="theme-transition-overlay"  aria-hidden="true" tabindex="-1">
+    <img id="theme-transition-overlay-img" onerror="this.style.display='none'" onload="this.style.display='block'" src="">
+  </div>
+</body>
+</html>
