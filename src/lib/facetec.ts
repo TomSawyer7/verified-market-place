@@ -112,7 +112,9 @@ class LivenessRequestProcessor implements FaceTecSessionRequestProcessor {
   }
 
   onSessionRequest(requestBlob: string, requestCallback: FaceTecSessionRequestProcessorCallback): void {
-    // Send the 3D FaceMap to FaceTec's testing API
+    // Send the 3D FaceMap to FaceTec's testing API with proper payload format
+    const payload = { requestBlob };
+    
     fetch(FACETEC_API_ENDPOINT, {
       method: 'POST',
       headers: {
@@ -120,15 +122,25 @@ class LivenessRequestProcessor implements FaceTecSessionRequestProcessor {
         'X-Device-Key': DEVICE_KEY_IDENTIFIER,
         'X-User-Agent': window.FaceTecSDK?.getTestingAPIHeader?.() || '',
       },
-      body: JSON.stringify({
-        faceScan: requestBlob,
-        source: 'browser-sdk',
-        performContinuousLearning: false,
-      }),
+      body: JSON.stringify(payload),
     })
-      .then((res) => res.text())
-      .then((responseText) => {
-        requestCallback.processResponse(responseText);
+      .then(async (res) => {
+        const responseText = await res.text();
+        if (!res.ok) {
+          console.error(`[FaceTec] API error - Status: ${res.status}, Body: ${responseText}`);
+        }
+        try {
+          const parsed = JSON.parse(responseText);
+          if (parsed.responseBlob) {
+            requestCallback.processResponse(parsed.responseBlob);
+          } else {
+            console.error('[FaceTec] No responseBlob in server response:', parsed);
+            requestCallback.abortOnCatastrophicError();
+          }
+        } catch {
+          console.error('[FaceTec] Failed to parse response:', responseText);
+          requestCallback.abortOnCatastrophicError();
+        }
       })
       .catch((err) => {
         console.error('[FaceTec] API request failed:', err);
@@ -192,8 +204,10 @@ export class FaceTecProvider implements BiometricProvider {
 
     return new Promise<boolean>((resolve) => {
       const initProcessor: FaceTecSessionRequestProcessor = {
-        onSessionRequest: (_requestBlob, requestCallback) => {
-          // During initialization, send the request to the testing API
+        onSessionRequest: (requestBlob, requestCallback) => {
+          // During initialization, send the request to the testing API with proper JSON payload
+          const payload = { requestBlob };
+          
           fetch(FACETEC_API_ENDPOINT, {
             method: 'POST',
             headers: {
@@ -201,11 +215,30 @@ export class FaceTecProvider implements BiometricProvider {
               'X-Device-Key': DEVICE_KEY_IDENTIFIER,
               'X-User-Agent': window.FaceTecSDK?.getTestingAPIHeader?.() || '',
             },
-            body: _requestBlob,
+            body: JSON.stringify(payload),
           })
-            .then((res) => res.text())
-            .then((responseText) => requestCallback.processResponse(responseText))
-            .catch(() => requestCallback.abortOnCatastrophicError());
+            .then(async (res) => {
+              const responseText = await res.text();
+              if (!res.ok) {
+                console.error(`[FaceTec] Init API error - Status: ${res.status}, Body: ${responseText}`);
+              }
+              try {
+                const parsed = JSON.parse(responseText);
+                if (parsed.responseBlob) {
+                  requestCallback.processResponse(parsed.responseBlob);
+                } else {
+                  console.error('[FaceTec] Init: No responseBlob in response:', parsed);
+                  requestCallback.abortOnCatastrophicError();
+                }
+              } catch {
+                console.error('[FaceTec] Init: Failed to parse response:', responseText);
+                requestCallback.abortOnCatastrophicError();
+              }
+            })
+            .catch((err) => {
+              console.error('[FaceTec] Init request failed:', err);
+              requestCallback.abortOnCatastrophicError();
+            });
         },
         onFaceTecExit: () => {
           // Initialization session exit — no action needed
@@ -361,6 +394,7 @@ export class FaceTecProvider implements BiometricProvider {
     return new Promise<IDScanResult>((resolve) => {
       const processor: FaceTecSessionRequestProcessor = {
         onSessionRequest: (requestBlob, requestCallback) => {
+          const payload = { requestBlob };
           fetch(FACETEC_API_ENDPOINT, {
             method: 'POST',
             headers: {
@@ -368,10 +402,21 @@ export class FaceTecProvider implements BiometricProvider {
               'X-Device-Key': DEVICE_KEY_IDENTIFIER,
               'X-User-Agent': window.FaceTecSDK?.getTestingAPIHeader?.() || '',
             },
-            body: JSON.stringify({ faceScan: requestBlob }),
+            body: JSON.stringify(payload),
           })
-            .then((res) => res.text())
-            .then((text) => requestCallback.processResponse(text))
+            .then(async (res) => {
+              const text = await res.text();
+              try {
+                const parsed = JSON.parse(text);
+                if (parsed.responseBlob) {
+                  requestCallback.processResponse(parsed.responseBlob);
+                } else {
+                  requestCallback.abortOnCatastrophicError();
+                }
+              } catch {
+                requestCallback.abortOnCatastrophicError();
+              }
+            })
             .catch(() => requestCallback.abortOnCatastrophicError());
         },
         onFaceTecExit: (result) => {
