@@ -1,84 +1,48 @@
 
 
-## Plan: Seller Profile Pages, Report Listing, and Location-Based Listings
+## Plan: Redesign Verification Flow to 4-Step Process
 
 ### Overview
-Three new features: public seller profiles with edit capability, a report listing system for flagging suspicious products, and location-based filtering on the marketplace.
+Restructure the verification page from the current 3-phase flow to a new 4-step process matching the user's specification, with Filipino/English bilingual instructions throughout.
 
----
+### New Flow (4 Steps)
 
-### 1. Database Changes (Migration)
+**Step 1: PhilSys eVerify Portal Screenshot**
+- Instructions in Filipino guiding users to https://everify.gov.ph/check
+- Integrate the existing `PhilSysScreenshotVerifier` component (currently unused in main flow)
+- Upload screenshot of "Verified" result as proof of ID legitimacy
+- Save screenshot to `verification-docs` storage and update `screenshot_url` in verifications table
 
-**Add `location` column to `products` table:**
-```sql
-ALTER TABLE products ADD COLUMN location text DEFAULT NULL;
-```
+**Step 2: ID Upload (Front & Back)**
+- Upload high-res images of National ID front and back (existing functionality)
+- After upload, display extracted/entered data fields: Full Name, Birthdate, Address, ID Number
+- "Retry / Try Again" button if details don't match
+- Note: Since we don't have ID Analyzer API integrated, this step combines upload + manual data entry (name, DOB, sex, blood type, marital status, place of birth) as before, but presented as "verify the details match your ID"
 
-**Create `reported_listings` table:**
-```sql
-CREATE TABLE reported_listings (
-  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  reporter_id uuid NOT NULL,
-  product_id uuid NOT NULL,
-  reason text NOT NULL,
-  description text,
-  status text NOT NULL DEFAULT 'pending',
-  created_at timestamptz NOT NULL DEFAULT now()
-);
-ALTER TABLE reported_listings ENABLE ROW LEVEL SECURITY;
--- Users can insert their own reports
--- Users can view their own reports
--- Admins can view and update all reports
-```
+**Step 3: Face Recognition (Liveness Check)**
+- Filipino instructions explaining the facial scan purpose
+- "Start Face Verification" button triggers existing BiometricProvider liveness check
+- Success shows "✅ Biometric Identity Confirmed"
 
-**Add `bio` column to `profiles` table** (for seller profile editing):
-```sql
-ALTER TABLE profiles ADD COLUMN bio text DEFAULT '';
-```
+**Step 4: Review & Confirm (Final Summary)**
+- Summary table showing all collected data: PhilSys screenshot preview, full name, DOB, ID number, liveness status
+- "Paalala" warning text about confirming accuracy
+- Two buttons: "Back/Edit" and "Confirm & Submit"
+- Only on "Confirm & Submit" does the data get submitted for admin review
 
----
+### Technical Details
 
-### 2. Seller Profile Page (`src/pages/SellerProfile.tsx`)
+**Files to edit:**
+- `src/pages/Verification.tsx` — Complete rewrite of the flow:
+  - Change `PHASES` from 3 to 4 steps
+  - Step 1: Add `PhilSysScreenshotVerifier` component import and usage
+  - Step 2: Keep existing ID upload + data entry form, reorder
+  - Step 3: Keep existing liveness check logic
+  - Step 4: New review summary card with all data displayed in a table, Back/Edit + Confirm & Submit buttons
+  - Update `getPhase()` logic to account for 4 steps (screenshot → ID docs + details → liveness → review)
+  - Add `screenshot_url` to the verification data type and fetch query
 
-- **Route**: `/seller/:id` (public page, viewable by authenticated users)
-- **Display**: Avatar initials, full name, verification badge, bio, member since date, location
-- **Listings tab**: All active products by this seller in a grid
-- **Reviews tab**: All reviews for this seller using existing `SellerReviews` component
-- **Edit mode**: If the logged-in user is viewing their own profile, show an "Edit Profile" button that toggles inline editing for bio, mobile number, and address fields (updates `profiles` table)
+**Database:** Add `screenshot_url` column already exists in verifications table — no migration needed.
 
-### 3. Report Listing Feature
-
-- **Report button** on `ProductDetail.tsx`: A flag icon button that opens a dialog
-- **Report dialog**: Reason dropdown (Suspicious listing, Counterfeit item, Misleading description, Scam, Other) + optional description textarea
-- **Inserts into `reported_listings`** table with the reporter's ID
-- **Admin Dashboard**: New "Reports" tab showing pending reports with product title, reporter, reason, and actions (Dismiss / Remove Listing)
-- Users cannot report their own listings (enforced via RLS)
-
-### 4. Location-Based Listings
-
-- **CreateListing.tsx**: Add a "Location" text input (city/province) to the listing form
-- **Marketplace.tsx**: Add location filter chips or a dropdown above the product grid; extend search to also match `location`
-- **Product cards**: Show location below seller name (small text with MapPin icon)
-- **ProductDetail.tsx**: Show location in product details
-
----
-
-### 5. Route & Nav Updates
-
-- Add `/seller/:id` route to `App.tsx`
-- Link seller names in `ProductDetail.tsx` and `Marketplace.tsx` to `/seller/:id`
-
-### Files to Create
-- `src/pages/SellerProfile.tsx`
-
-### Files to Edit
-- `src/App.tsx` (add route)
-- `src/pages/ProductDetail.tsx` (add report button + dialog, location display, link seller name)
-- `src/pages/Marketplace.tsx` (location filter, show location on cards, link seller name)
-- `src/pages/CreateListing.tsx` (add location input)
-- `src/pages/AdminDashboard.tsx` (add Reports tab)
-- `src/components/Navbar.tsx` (optionally add "My Profile" link)
-
-### Database Migration
-- Add `location` to `products`, `bio` to `profiles`, create `reported_listings` table with RLS
+**No new files needed** — `PhilSysScreenshotVerifier` component already exists.
 
