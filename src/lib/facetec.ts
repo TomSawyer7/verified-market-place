@@ -389,6 +389,7 @@ export class FaceTecProvider implements BiometricProvider {
 
     this.updateStatus({ phase: 'scanning' });
 
+    this.updateStatus({ phase: 'preparing' });
     return new Promise<LivenessResult>((resolve) => {
       const processor = new LivenessRequestProcessor(
         (passed) => {
@@ -416,6 +417,7 @@ export class FaceTecProvider implements BiometricProvider {
             );
           } else {
             this.updateStatus({ phase: 'failed', reason: 'Liveness check did not pass' });
+            this.updateStatus({ phase: 'failed', reason: 'Liveness verification was not successful. Please try again.' });
             resolve({
               passed: false,
               confidence: 0,
@@ -430,6 +432,11 @@ export class FaceTecProvider implements BiometricProvider {
       );
 
       this.sdkInstance!.start3DLiveness(processor);
+      // Brief delay to show "Preparing Camera..." before FaceTec overlay opens
+      setTimeout(() => {
+        this.updateStatus({ phase: 'scanning' });
+        this.sdkInstance!.start3DLiveness(processor);
+      }, 800);
     });
   }
 
