@@ -1,5 +1,3 @@
-import { useEffect } from "react"; // 1. Dinagdag itong useEffect
-import { supabase } from "@/integrations/supabase/client"; // 2. Import ang client mo
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Route, Routes } from "react-router-dom";
 import { Toaster as Sonner } from "@/components/ui/sonner";
@@ -25,19 +23,6 @@ import SellerProfile from "./pages/SellerProfile";
 const queryClient = new QueryClient();
 
 const App = () => {
-  // 3. ITO ANG PANGLALAMAN KUNG CONNECTED O HINDI
-  useEffect(() => {
-    const checkConnection = async () => {
-      const { data, error } = await supabase.from('test').select('*').limit(1);
-      if (error && error.message.includes("fetch")) {
-        console.log("❌ MALAS: Hindi connected. Check net o credentials.");
-      } else {
-        console.log("✅ SWERTE: Connected na ang Supabase mo!");
-      }
-    };
-    checkConnection();
-  }, []);
-
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
