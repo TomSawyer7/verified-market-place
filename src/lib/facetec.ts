@@ -12,6 +12,23 @@ const FACETEC_IMAGES_DIR = '/facetec-sdk/FaceTecSDK-browser-10.0.43/core-sdk/Fac
 const FACETEC_API_ENDPOINT = 'https://api.facetec.com/api/v4/biometrics/process-request';
 
 // ── Result Types ──
+// ── Session Status Names (for logging) ──
+const SESSION_STATUS_NAMES: Record<number, string> = {
+  0: 'SessionCompleted', 1: 'RequestAborted', 2: 'UserCancelledFaceScan',
+  3: 'UserCancelledIDScan', 4: 'LockedOut', 5: 'CameraError',
+  6: 'CameraPermissionsDenied', 7: 'UnknownInternalError', 8: 'IFrameNotAllowedWithoutPermission',
+};
+const SESSION_STATUS_USER_MESSAGES: Record<number, string> = {
+  1: 'The session was aborted. Please try again.',
+  2: 'You cancelled the face scan. Please try again when ready.',
+  4: 'Too many failed attempts. Please wait a few minutes and try again.',
+  5: 'Camera error — ensure your camera is not in use by another app.',
+  6: 'Camera permission denied. Please allow camera access in your browser settings.',
+  7: 'An unexpected error occurred. Please refresh and try again.',
+  8: 'FaceTec cannot run inside an iframe. Please open this page in a new browser tab.',
+};
+
+// ── Result Types ──
 export interface LivenessResult {
   passed: boolean;
   confidence: number;
