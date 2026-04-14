@@ -414,7 +414,6 @@ export class FaceTecProvider implements BiometricProvider {
             );
           } else {
             this.updateStatus({ phase: 'failed', reason: 'Liveness check did not pass' });
-            this.updateStatus({ phase: 'failed', reason: 'Liveness verification was not successful. Please try again.' });
             resolve({
               passed: false,
               confidence: 0,
