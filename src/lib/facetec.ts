@@ -200,18 +200,6 @@ class LivenessRequestProcessor implements FaceTecSessionRequestProcessor {
 
     if (status === FaceTecSessionStatus.SessionCompleted) {
       this.onComplete(true);
-    } else if (status === FaceTecSessionStatus.CameraPermissionsDenied) {
-      console.warn('[FaceTec] Camera permissions denied');
-      this.onComplete(false);
-    } else if (status === FaceTecSessionStatus.UserCancelledFaceScan) {
-      console.log('[FaceTec] User cancelled');
-      this.onComplete(false);
-    } else {
-      console.warn('[FaceTec] Session ended with status:', status);
-      this.onComplete(false);
-    }
-    if (status === FaceTecSessionStatus.SessionCompleted) {
-      this.onComplete(true);
     } else {
       const statusName = SESSION_STATUS_NAMES[status] || `Unknown(${status})`;
       const userMessage = SESSION_STATUS_USER_MESSAGES[status] || `Session ended unexpectedly (${statusName}).`;
