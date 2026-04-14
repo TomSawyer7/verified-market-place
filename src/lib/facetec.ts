@@ -210,6 +210,15 @@ class LivenessRequestProcessor implements FaceTecSessionRequestProcessor {
       console.warn('[FaceTec] Session ended with status:', status);
       this.onComplete(false);
     }
+    if (status === FaceTecSessionStatus.SessionCompleted) {
+      this.onComplete(true);
+    } else {
+      const statusName = SESSION_STATUS_NAMES[status] || `Unknown(${status})`;
+      const userMessage = SESSION_STATUS_USER_MESSAGES[status] || `Session ended unexpectedly (${statusName}).`;
+      console.warn(`[FaceTec] Session ended — status: ${status} (${statusName})`);
+      console.warn(`[FaceTec] User message: ${userMessage}`);
+      this.onComplete(false);
+    }
   }
 }
 
