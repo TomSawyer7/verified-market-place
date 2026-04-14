@@ -11,7 +11,6 @@ const FACETEC_RESOURCE_DIR = '/facetec-sdk/FaceTecSDK-browser-10.0.43/core-sdk/F
 const FACETEC_IMAGES_DIR = '/facetec-sdk/FaceTecSDK-browser-10.0.43/core-sdk/FaceTec_images';
 const FACETEC_API_ENDPOINT = 'https://api.facetec.com/api/v4/biometrics/process-request';
 
-// ── Result Types ──
 // ── Session Status Names (for logging) ──
 const SESSION_STATUS_NAMES: Record<number, string> = {
   0: 'SessionCompleted', 1: 'RequestAborted', 2: 'UserCancelledFaceScan',
@@ -28,7 +27,6 @@ const SESSION_STATUS_USER_MESSAGES: Record<number, string> = {
   8: 'FaceTec cannot run inside an iframe. Please open this page in a new browser tab.',
 };
 
-// ── Result Types ──
 export interface LivenessResult {
   passed: boolean;
   confidence: number;
@@ -384,8 +382,6 @@ export class FaceTecProvider implements BiometricProvider {
       return { passed: false, confidence: 0, selfieBlob: null, challenges: [msg] };
     }
 
-    this.updateStatus({ phase: 'scanning' });
-
     this.updateStatus({ phase: 'preparing' });
     return new Promise<LivenessResult>((resolve) => {
       const processor = new LivenessRequestProcessor(
@@ -413,7 +409,6 @@ export class FaceTecProvider implements BiometricProvider {
               0.85
             );
           } else {
-            this.updateStatus({ phase: 'failed', reason: 'Liveness check did not pass' });
             this.updateStatus({ phase: 'failed', reason: 'Liveness verification was not successful. Please try again.' });
             resolve({
               passed: false,
