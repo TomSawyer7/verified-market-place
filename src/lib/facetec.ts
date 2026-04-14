@@ -4,8 +4,6 @@
  * Uses the FaceTec Browser SDK hosted at /facetec-sdk/ for 3D liveness detection.
  * Falls back to face-api.js if FaceTec SDK fails to load.
  */
-import '@/types/facetec.d.ts';
-
 // ── SDK Constants ──
 const DEVICE_KEY_IDENTIFIER = 'djbcFPsQNZsJAlV438vKL782T8aj3EQw';
 const FACETEC_SDK_SCRIPT = '/facetec-sdk/FaceTecSDK-browser-10.0.43/core-sdk/FaceTecSDK.js/FaceTecSDK.js';
