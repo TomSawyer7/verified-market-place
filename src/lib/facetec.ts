@@ -228,6 +228,20 @@ export class FaceTecProvider implements BiometricProvider {
   }
 
   async initialize(): Promise<boolean> {
+    // Check iframe context first
+    if (isRunningInIframe()) {
+      console.warn('[FaceTec] Running inside an iframe — SDK requires top-level browsing context.');
+      this.updateStatus({ phase: 'error', message: 'FaceTec cannot run inside an iframe. Please open this page directly in a new browser tab (click the external link icon at the top-right of the preview).' });
+      return false;
+    }
+    // Pre-check camera permission
+    this.updateStatus({ phase: 'checking-camera' });
+    const camCheck = await checkCameraPermission();
+    if (!camCheck.granted) {
+      console.error('[FaceTec] Camera pre-check failed:', camCheck.error);
+      this.updateStatus({ phase: 'error', message: camCheck.error || 'Camera not available' });
+      return false;
+    }
     this.updateStatus({ phase: 'loading-sdk' });
 
     const loaded = await loadFaceTecScript();
