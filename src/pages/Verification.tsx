@@ -608,7 +608,7 @@ const Verification = () => {
                         : 'bg-muted border border-border'
                     }`}>
                       <div className="flex items-center gap-3">
-                        {(facetecStatus.phase === 'loading-sdk' || facetecStatus.phase === 'initializing' || facetecStatus.phase === 'scanning') && (
+                        {(facetecStatus.phase === 'loading-sdk' || facetecStatus.phase === 'checking-camera' || facetecStatus.phase === 'initializing' || facetecStatus.phase === 'preparing' || facetecStatus.phase === 'scanning') && (
                           <Loader2 className="h-5 w-5 animate-spin text-primary" />
                         )}
                         {facetecStatus.phase === 'processing' && (
@@ -621,8 +621,10 @@ const Verification = () => {
                         <div className="flex-1">
                           <p className="font-medium">
                             {facetecStatus.phase === 'loading-sdk' && 'Loading FaceTec SDK...'}
+                            {facetecStatus.phase === 'checking-camera' && 'Checking camera access...'}
                             {facetecStatus.phase === 'initializing' && 'Initializing 3D Liveness Engine...'}
                             {facetecStatus.phase === 'ready' && 'SDK Ready — Click below to start'}
+                            {facetecStatus.phase === 'preparing' && 'Preparing Camera...'}
                             {facetecStatus.phase === 'scanning' && '3D Face Scan in progress...'}
                             {facetecStatus.phase === 'processing' && `Processing... ${(facetecStatus as any).progress ?? 0}%`}
                             {facetecStatus.phase === 'success' && 'Liveness Verified!'}
@@ -647,11 +649,11 @@ const Verification = () => {
                       className="w-full gap-2"
                       size="lg"
                       onClick={startFaceTecLiveness}
-                      disabled={facetecStatus?.phase === 'loading-sdk' || facetecStatus?.phase === 'initializing' || facetecStatus?.phase === 'scanning' || facetecStatus?.phase === 'processing'}
+                      disabled={facetecStatus?.phase === 'loading-sdk' || facetecStatus?.phase === 'checking-camera' || facetecStatus?.phase === 'initializing' || facetecStatus?.phase === 'preparing' || facetecStatus?.phase === 'scanning' || facetecStatus?.phase === 'processing'}
                     >
-                      {(facetecStatus?.phase === 'loading-sdk' || facetecStatus?.phase === 'initializing') ? (
+                      {(facetecStatus?.phase === 'loading-sdk' || facetecStatus?.phase === 'checking-camera' || facetecStatus?.phase === 'initializing') ? (
                         <><Loader2 className="h-4 w-4 animate-spin" /> Initializing...</>
-                      ) : facetecStatus?.phase === 'scanning' || facetecStatus?.phase === 'processing' ? (
+                      ) : facetecStatus?.phase === 'preparing' || facetecStatus?.phase === 'scanning' || facetecStatus?.phase === 'processing' ? (
                         <><Loader2 className="h-4 w-4 animate-spin" /> Scanning...</>
                       ) : facetecStatus?.phase === 'failed' || facetecStatus?.phase === 'error' || facetecStatus?.phase === 'cancelled' ? (
                         <><ScanFace className="h-4 w-4" /> Retry 3D Liveness Check</>
