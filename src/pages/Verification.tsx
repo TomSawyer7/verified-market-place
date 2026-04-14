@@ -598,23 +598,81 @@ const Verification = () => {
                 </div>
               ) : (
                 <div className="space-y-4">
-                  <div className="relative aspect-video bg-muted rounded-lg overflow-hidden">
-                    <video ref={videoRef} className="w-full h-full object-cover" muted playsInline />
-                    {!cameraActive && (
-                      <div className="absolute inset-0 flex flex-col items-center justify-center gap-3">
-                        <Camera className="h-12 w-12 text-muted-foreground" />
-                        <Button onClick={startCamera}>Start Face Verification</Button>
+                  {/* FaceTec Status Display */}
+                  {facetecStatus && (
+                    <div className={`rounded-lg p-4 text-sm ${
+                      facetecStatus.phase === 'error' || facetecStatus.phase === 'failed'
+                        ? 'bg-destructive/10 border border-destructive/30'
+                        : facetecStatus.phase === 'success'
+                        ? 'bg-accent/10 border border-accent/30'
+                        : 'bg-muted border border-border'
+                    }`}>
+                      <div className="flex items-center gap-3">
+                        {(facetecStatus.phase === 'loading-sdk' || facetecStatus.phase === 'initializing' || facetecStatus.phase === 'scanning') && (
+                          <Loader2 className="h-5 w-5 animate-spin text-primary" />
+                        )}
+                        {facetecStatus.phase === 'processing' && (
+                          <Loader2 className="h-5 w-5 animate-spin text-primary" />
+                        )}
+                        {facetecStatus.phase === 'success' && <CheckCircle className="h-5 w-5 text-accent" />}
+                        {facetecStatus.phase === 'ready' && <ScanFace className="h-5 w-5 text-primary" />}
+                        {(facetecStatus.phase === 'error' || facetecStatus.phase === 'failed') && <XCircle className="h-5 w-5 text-destructive" />}
+                        {facetecStatus.phase === 'cancelled' && <AlertCircle className="h-5 w-5 text-muted-foreground" />}
+                        <div className="flex-1">
+                          <p className="font-medium">
+                            {facetecStatus.phase === 'loading-sdk' && 'Loading FaceTec SDK...'}
+                            {facetecStatus.phase === 'initializing' && 'Initializing 3D Liveness Engine...'}
+                            {facetecStatus.phase === 'ready' && 'SDK Ready — Click below to start'}
+                            {facetecStatus.phase === 'scanning' && '3D Face Scan in progress...'}
+                            {facetecStatus.phase === 'processing' && `Processing... ${(facetecStatus as any).progress ?? 0}%`}
+                            {facetecStatus.phase === 'success' && 'Liveness Verified!'}
+                            {facetecStatus.phase === 'failed' && `Failed: ${(facetecStatus as any).reason || 'Unknown'}`}
+                            {facetecStatus.phase === 'cancelled' && 'Scan cancelled'}
+                            {facetecStatus.phase === 'error' && (facetecStatus as any).message}
+                          </p>
+                          {facetecStatus.phase === 'processing' && (
+                            <Progress value={(facetecStatus as any).progress ?? 0} className="h-1.5 mt-2" />
+                          )}
+                        </div>
                       </div>
-                    )}
-                    {cameraActive && livenessStep && (
-                      <div className="absolute bottom-0 inset-x-0 bg-background/80 backdrop-blur-sm p-3 text-center">
-                        <p className="text-sm font-medium">{livenessStep}</p>
+                    </div>
+                  )}
+
+                  {/* Hidden video for selfie capture */}
+                  <video ref={videoRef} className="hidden" muted playsInline />
+
+                  {/* Start / Retry Button */}
+                  {!livenessPassed && (
+                    <Button
+                      className="w-full gap-2"
+                      size="lg"
+                      onClick={startFaceTecLiveness}
+                      disabled={facetecStatus?.phase === 'loading-sdk' || facetecStatus?.phase === 'initializing' || facetecStatus?.phase === 'scanning' || facetecStatus?.phase === 'processing'}
+                    >
+                      {(facetecStatus?.phase === 'loading-sdk' || facetecStatus?.phase === 'initializing') ? (
+                        <><Loader2 className="h-4 w-4 animate-spin" /> Initializing...</>
+                      ) : facetecStatus?.phase === 'scanning' || facetecStatus?.phase === 'processing' ? (
+                        <><Loader2 className="h-4 w-4 animate-spin" /> Scanning...</>
+                      ) : facetecStatus?.phase === 'failed' || facetecStatus?.phase === 'error' || facetecStatus?.phase === 'cancelled' ? (
+                        <><ScanFace className="h-4 w-4" /> Retry 3D Liveness Check</>
+                      ) : (
+                        <><ScanFace className="h-4 w-4" /> Start 3D Liveness Check</>
+                      )}
+                    </Button>
+                  )}
+
+                  {/* Submit after success */}
+                  {livenessPassed && selfieBlob && (
+                    <div className="space-y-3">
+                      <div className="flex items-center gap-2 text-accent bg-accent/10 p-3 rounded-lg text-sm">
+                        <CheckCircle className="h-5 w-5" />
+                        <span className="font-medium">3D Liveness Verified — FaceTec SDK</span>
                       </div>
-                    )}
-                  </div>
-                  <Button className="w-full" disabled={!livenessPassed || !selfieBlob || submittingBiometric} onClick={handleBiometricSubmit}>
-                    {submittingBiometric ? 'Submitting...' : 'Submit Biometric'}
-                  </Button>
+                      <Button className="w-full" disabled={submittingBiometric} onClick={handleBiometricSubmit}>
+                        {submittingBiometric ? 'Submitting...' : 'Submit Biometric Verification'}
+                      </Button>
+                    </div>
+                  )}
                 </div>
               )}
             </CardContent>
