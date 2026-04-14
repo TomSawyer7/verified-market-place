@@ -67,9 +67,8 @@ const Verification = () => {
   });
   const [savingForm, setSavingForm] = useState(false);
 
-  // Step 3: Liveness
-  const [cameraActive, setCameraActive] = useState(false);
-  const [livenessStep, setLivenessStep] = useState('');
+  // Step 3: Liveness (FaceTec)
+  const [facetecStatus, setFacetecStatus] = useState<FaceTecStatus | null>(null);
   const [livenessPassed, setLivenessPassed] = useState(false);
   const [selfieBlob, setSelfieBlob] = useState<Blob | null>(null);
   const [submittingBiometric, setSubmittingBiometric] = useState(false);
