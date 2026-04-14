@@ -1,29 +1,28 @@
 /**
  * Global type declarations for the FaceTec Browser SDK
- * loaded via script tag from /facetec-sdk/
  */
 
-interface FaceTecSessionRequestProcessorCallback {
+declare interface FaceTecSessionRequestProcessorCallback {
   processResponse(responseBlob: string): void;
   updateProgress(uploadPercent: number): void;
   abortOnCatastrophicError(): void;
 }
 
-interface FaceTecSessionResult {
+declare interface FaceTecSessionResult {
   status: number;
 }
 
-interface FaceTecSessionRequestProcessor {
+declare interface FaceTecSessionRequestProcessor {
   onSessionRequest(requestBlob: string, requestCallback: FaceTecSessionRequestProcessorCallback): void;
   onFaceTecExit(result: FaceTecSessionResult): void;
 }
 
-interface FaceTecInitializeCallback {
+declare interface FaceTecInitializeCallback {
   onSuccess(sdkInstance: FaceTecSDKInstance): void;
   onError(error: number): void;
 }
 
-interface FaceTecSDKInstance {
+declare interface FaceTecSDKInstance {
   start3DLiveness(sessionRequestProcessor: FaceTecSessionRequestProcessor): void;
   start3DLivenessThen3DFaceMatch(sessionRequestProcessor: FaceTecSessionRequestProcessor): void;
   startIDScanOnly(sessionRequestProcessor: FaceTecSessionRequestProcessor): void;
@@ -32,7 +31,7 @@ interface FaceTecSDKInstance {
   startSecureOfficialIDPhotoCapture(sessionRequestProcessor: FaceTecSessionRequestProcessor): void;
 }
 
-interface FaceTecSDKType {
+declare interface FaceTecSDKType {
   initializeWithSessionRequest(
     deviceKeyIdentifier: string,
     sessionRequestProcessor: FaceTecSessionRequestProcessor,
@@ -84,11 +83,8 @@ interface FaceTecSDKType {
   getTestingAPIHeader(): string;
 }
 
-declare global {
-  interface Window {
-    FaceTecSDK: FaceTecSDKType;
-  }
-  var FaceTecSDK: FaceTecSDKType;
-}
+declare var FaceTecSDK: FaceTecSDKType;
 
-export {};
+interface Window {
+  FaceTecSDK: FaceTecSDKType;
+}
