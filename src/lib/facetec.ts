@@ -63,8 +63,10 @@ export type FaceTecStatusCallback = (status: FaceTecStatus) => void;
 
 export type FaceTecStatus =
   | { phase: 'loading-sdk' }
+  | { phase: 'checking-camera' }
   | { phase: 'initializing' }
   | { phase: 'ready' }
+  | { phase: 'preparing' }
   | { phase: 'scanning' }
   | { phase: 'processing'; progress: number }
   | { phase: 'success' }
