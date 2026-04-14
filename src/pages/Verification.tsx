@@ -212,27 +212,46 @@ const Verification = () => {
     }
   };
 
-  // === Step 3: Liveness ===
-  const startCamera = useCallback(async () => {
+  // === Step 3: FaceTec Liveness ===
+  const startFaceTecLiveness = useCallback(async () => {
     try {
-      const provider = createBiometricProvider();
+      const provider = createBiometricProvider('facetec', (status) => {
+        setFacetecStatus(status);
+      });
       const initialized = await provider.initialize();
       if (!initialized) {
-        toast.error('Biometric system failed to initialize');
+        toast.error('FaceTec SDK failed to initialize. Please check your connection and try again.');
         return;
       }
       providerRef.current = provider;
 
+      // Open camera for selfie capture after FaceTec overlay closes
       const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user', width: 480, height: 360 } });
       streamRef.current = stream;
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
         await videoRef.current.play();
       }
-      setCameraActive(true);
-      runLivenessCheck();
-    } catch {
-      toast.error('Camera access is required for the liveness check');
+
+      // Start the 3D liveness scan (FaceTec opens its own overlay)
+      const result = await provider.performLivenessCheck(videoRef.current!);
+      if (result.passed && result.selfieBlob) {
+        setSelfieBlob(result.selfieBlob);
+        setLivenessPassed(true);
+        toast.success('3D Liveness verified successfully!');
+      } else {
+        setLivenessPassed(false);
+        toast.error('Liveness check did not pass. Please try again.');
+      }
+    } catch (err: any) {
+      if (err?.name === 'NotAllowedError' || err?.message?.includes('Permission')) {
+        toast.error('Camera permission denied. Please enable camera access in your browser settings and try again.');
+        setFacetecStatus({ phase: 'error', message: 'Camera permission denied. Please enable camera access.' });
+      } else {
+        console.error('[FaceTec] Error:', err);
+        toast.error('An error occurred during the liveness check.');
+        setFacetecStatus({ phase: 'error', message: err?.message || 'Unknown error' });
+      }
     }
   }, []);
 
@@ -241,31 +260,7 @@ const Verification = () => {
     streamRef.current = null;
     providerRef.current?.dispose();
     providerRef.current = null;
-    setCameraActive(false);
   }, []);
-
-  const runLivenessCheck = async () => {
-    const challenges = ['Blink your eyes', 'Turn your head slightly to the left', 'Smile for the camera', 'Nod slightly'];
-    for (const challenge of challenges) {
-      setLivenessStep(challenge);
-      await new Promise(r => setTimeout(r, 2500));
-    }
-
-    setLivenessStep('Capturing selfie...');
-    await new Promise(r => setTimeout(r, 1000));
-
-    if (videoRef.current && providerRef.current) {
-      const result = await providerRef.current.performLivenessCheck(videoRef.current);
-      if (result.passed && result.selfieBlob) {
-        setSelfieBlob(result.selfieBlob);
-        setLivenessPassed(true);
-        setLivenessStep('✅ Liveness check passed!');
-      } else {
-        setLivenessStep('Face not detected. Please try again.');
-        setLivenessPassed(false);
-      }
-    }
-  };
 
   const handleBiometricSubmit = async () => {
     if (!user || !verification || !selfieBlob) return;
