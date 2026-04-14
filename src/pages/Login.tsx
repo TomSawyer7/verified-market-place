@@ -6,10 +6,8 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { ShieldCheck, AlertTriangle, Lock, Eye, EyeOff, Mail } from 'lucide-react';
+import { ShieldCheck, Lock, Eye, EyeOff, Mail } from 'lucide-react';
 import { toast } from 'sonner';
-import { checkRateLimit, resetRateLimit, logSecurityEvent, logSessionActivity } from '@/lib/security';
-import { supabase } from '@/integrations/supabase/client';
 
 const Login = () => {
   const [email, setEmail] = useState('');
@@ -17,12 +15,10 @@ const Login = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [locked, setLocked] = useState(false);
-  const [lockTimer, setLockTimer] = useState(0);
-  const [failedAttempts, setFailedAttempts] = useState(0);
   const { signIn } = useAuth();
   const navigate = useNavigate();
 
+  // Load saved email
   useEffect(() => {
     const saved = localStorage.getItem('trustmart_remember_email');
     if (saved) {
@@ -31,129 +27,144 @@ const Login = () => {
     }
   }, []);
 
-  useEffect(() => {
-    if (lockTimer <= 0) { setLocked(false); return; }
-    const interval = setInterval(() => setLockTimer(t => t - 1), 1000);
-    return () => clearInterval(interval);
-  }, [lockTimer]);
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-
-    const rateCheck = checkRateLimit(email);
-    if (!rateCheck.allowed) {
-      setLocked(true);
-      setLockTimer(rateCheck.waitSeconds);
-      toast.error(`Too many attempts. Try again in ${Math.ceil(rateCheck.waitSeconds / 60)} minutes.`);
-      return;
-    }
+    if (loading) return;
 
     setLoading(true);
-    const { error } = await signIn(email, password);
-    setLoading(false);
 
-    if (error) {
-      const attempts = failedAttempts + 1;
-      setFailedAttempts(attempts);
+    try {
+      const { error } = await signIn(email, password);
 
-      try {
-        await supabase.from('login_attempts').insert({
-          email,
-          success: false,
-          user_agent: navigator.userAgent,
-        });
-      } catch {}
-
-      if (error.message?.toLowerCase().includes('email not confirmed')) {
-        toast.error('Please verify your email before signing in. Check your inbox for a confirmation link.');
-      } else if (attempts >= 3) {
-        toast.error(`Login failed (${attempts}/5 attempts). Account will be temporarily locked.`);
-      } else {
-        toast.error('Invalid credentials. Please check your email and password.');
+      if (error) {
+        // Importante: Patayin ang loading spinner kapag may error
+        setLoading(false); 
+        
+        if (error.message?.toLowerCase().includes('confirm')) {
+          toast.error('Email confirmation is required. Please check your inbox.');
+        } else {
+          toast.error('Invalid email or password. Please try again.');
+        }
+        return;
       }
-    } else {
+
+      // Success logic
       if (rememberMe) {
         localStorage.setItem('trustmart_remember_email', email);
       } else {
         localStorage.removeItem('trustmart_remember_email');
       }
 
-      resetRateLimit(email);
-      setFailedAttempts(0);
-
-      const { data: { session } } = await supabase.auth.getSession();
-      if (session?.user) {
-        await logSessionActivity(session.user.id, 'login');
-        await logSecurityEvent(session.user.id, 'login_success', 'info', 'User logged in successfully');
-      }
-
       toast.success('Welcome back!');
       navigate('/marketplace');
+
+    } catch (err) {
+      console.error("Login failed:", err);
+      setLoading(false);
+      toast.error("An unexpected error occurred. Please refresh.");
     }
   };
 
-  const canSubmit = email && password && !loading && !locked;
+  const canSubmit = email && password && !loading;
 
   return (
-    <div className="min-h-[calc(100vh-3.5rem)] flex items-center justify-center p-4">
-      <Card className="w-full max-w-sm border">
+    <div className="min-h-[calc(100vh-3.5rem)] flex items-center justify-center p-4 bg-background">
+      <Card className="w-full max-w-sm border shadow-lg">
         <CardHeader className="text-center pb-4">
           <div className="flex justify-center mb-3">
-            <div className="h-10 w-10 rounded-md bg-foreground flex items-center justify-center">
-              <ShieldCheck className="h-5 w-5 text-background" />
+            <div className="h-12 w-12 rounded-lg bg-primary/10 flex items-center justify-center">
+              <ShieldCheck className="h-6 w-6 text-primary" />
             </div>
           </div>
-          <CardTitle className="text-xl">Welcome back</CardTitle>
-          <CardDescription className="text-xs">Sign in to TrustMart</CardDescription>
+          <CardTitle className="text-2xl font-bold">Welcome Back</CardTitle>
+          <CardDescription className="text-sm">Enter your credentials to access TrustMart</CardDescription>
         </CardHeader>
         <CardContent>
-          {locked && (
-            <div className="flex items-center gap-2 text-destructive bg-destructive/10 p-3 rounded-lg mb-4 text-xs" role="alert">
-              <Lock className="h-4 w-4 flex-shrink-0" />
-              <span>Account temporarily locked. Try again in {Math.floor(lockTimer / 60)}:{(lockTimer % 60).toString().padStart(2, '0')}</span>
-            </div>
-          )}
-          {failedAttempts >= 3 && !locked && (
-            <div className="flex items-center gap-2 text-orange-600 bg-orange-50 p-3 rounded-lg mb-4 text-xs" role="alert">
-              <AlertTriangle className="h-4 w-4 flex-shrink-0" />
-              <span>{5 - failedAttempts} attempts remaining before temporary lockout.</span>
-            </div>
-          )}
-          <form onSubmit={handleSubmit} className="space-y-3">
-            <div className="space-y-1.5">
-              <Label htmlFor="email" className="text-xs">Email</Label>
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="email" className="text-sm font-medium">Email</Label>
               <div className="relative">
                 <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input id="email" type="email" placeholder="you@example.com" value={email} onChange={e => setEmail(e.target.value)} required disabled={locked} className="pl-10" aria-label="Email address" />
+                <Input 
+                  id="email" 
+                  type="email" 
+                  placeholder="name@example.com" 
+                  value={email} 
+                  onChange={e => setEmail(e.target.value)} 
+                  required 
+                  disabled={loading}
+                  className="pl-10 h-11" 
+                />
               </div>
             </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="password" className="text-xs">Password</Label>
+            
+            <div className="space-y-2">
+              <div className="flex justify-between items-center">
+                <Label htmlFor="password" name="password" className="text-sm font-medium">Password</Label>
+                <Link to="/forgot-password" name="forgot" className="text-xs text-primary hover:underline">
+                  Forgot password?
+                </Link>
+              </div>
               <div className="relative">
-                <Input id="password" type={showPassword ? 'text' : 'password'} placeholder="••••••••" value={password} onChange={e => setPassword(e.target.value)} required disabled={locked} aria-label="Password" />
-                <Button type="button" variant="ghost" size="icon" className="absolute right-0 top-0 h-10 w-10" onClick={() => setShowPassword(!showPassword)} aria-label={showPassword ? 'Hide password' : 'Show password'} tabIndex={-1}>
+                <Input 
+                  id="password" 
+                  type={showPassword ? 'text' : 'password'} 
+                  placeholder="••••••••" 
+                  value={password} 
+                  onChange={e => setPassword(e.target.value)} 
+                  required 
+                  disabled={loading}
+                  className="h-11" 
+                />
+                <Button 
+                  type="button" 
+                  variant="ghost" 
+                  size="icon" 
+                  className="absolute right-0 top-0 h-11 w-11 text-muted-foreground" 
+                  onClick={() => setShowPassword(!showPassword)}
+                >
                   {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                 </Button>
               </div>
-              <Link to="/forgot-password" className="text-[11px] text-muted-foreground hover:text-foreground underline underline-offset-2 block text-right" tabIndex={-1}>
-                Forgot password?
-              </Link>
             </div>
-            <div className="flex items-center space-x-2">
-              <Checkbox id="remember" checked={rememberMe} onCheckedChange={(c) => setRememberMe(!!c)} aria-label="Remember me" />
-              <Label htmlFor="remember" className="text-xs text-muted-foreground cursor-pointer">Remember me</Label>
+
+            <div className="flex items-center space-x-2 py-1">
+              <Checkbox 
+                id="remember" 
+                checked={rememberMe} 
+                onCheckedChange={(c) => setRememberMe(!!c)} 
+              />
+              <Label htmlFor="remember" className="text-sm text-muted-foreground cursor-pointer">
+                Keep me signed in
+              </Label>
             </div>
-            <Button type="submit" className="w-full bg-foreground text-background hover:bg-foreground/90" disabled={!canSubmit}>
-              {loading ? 'Signing in...' : locked ? 'Locked' : 'Sign in'}
+
+            <Button 
+              type="submit" 
+              className="w-full h-11 text-base font-semibold transition-all" 
+              disabled={!canSubmit}
+            >
+              {loading ? (
+                <span className="flex items-center gap-2">
+                  <span className="h-4 w-4 border-2 border-current border-t-transparent animate-spin rounded-full" />
+                  Signing in...
+                </span>
+              ) : 'Sign In'}
             </Button>
           </form>
-          <div className="flex items-center gap-1.5 mt-4 p-2.5 rounded-lg bg-muted/50 text-[11px] text-muted-foreground">
-            <Lock className="h-3 w-3 flex-shrink-0" />
-            <span>Protected by rate limiting, breach detection, and session monitoring.</span>
+
+          <div className="relative my-6">
+            <div className="absolute inset-0 flex items-center">
+              <span className="w-full border-t" />
+            </div>
+            <div className="relative flex justify-center text-xs uppercase">
+              <span className="bg-background px-2 text-muted-foreground">New to TrustMart?</span>
+            </div>
           </div>
-          <p className="text-center text-xs text-muted-foreground mt-3">
-            No account? <Link to="/register" className="font-medium underline underline-offset-2 text-foreground">Create one</Link>
-          </p>
+
+          <Button variant="outline" className="w-full h-11" asChild>
+            <Link to="/register">Create an account</Link>
+          </Button>
         </CardContent>
       </Card>
     </div>
