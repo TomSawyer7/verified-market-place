@@ -1,11 +1,11 @@
-import { useState, useMemo } from 'react';
+import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { ShieldCheck, Lock, Eye, EyeOff, CheckCircle, XCircle, Mail, User } from 'lucide-react';
+import { ShieldCheck, Eye, EyeOff, Mail } from 'lucide-react';
 import { toast } from 'sonner';
 
 const Register = () => {
@@ -35,28 +35,23 @@ const Register = () => {
     setLoading(true);
 
     try {
-      // Ang signUp function na ang bahala sa lahat. 
-      // Ang database trigger na ang gagawa ng profile record mo.
       const { error } = await signUp(email, password, { 
         first_name: firstName, 
         last_name: lastName 
       });
 
       if (error) {
-        setLoading(false);
         toast.error(error.message);
         return;
       }
 
-      // Success!
-      setLoading(false);
       setSuccess(true);
       toast.success('Registration successful!');
-
     } catch (err) {
-      setLoading(false);
       console.error("Registration Error:", err);
       toast.error("Something went wrong. Please try again.");
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -72,7 +67,7 @@ const Register = () => {
             </div>
             <h2 className="text-xl font-bold">Check your email!</h2>
             <p className="text-sm text-muted-foreground">
-              We sent a link to <b>{email}</b>. (Kung in-OFF mo na ang confirm email sa Supabase, pwede ka na dumiretso sa Login).
+              We sent a confirmation link to <b>{email}</b>. Please verify your email before signing in.
             </p>
             <Button variant="default" className="w-full" onClick={() => navigate('/login')}>
               Go to Login
