@@ -5,9 +5,16 @@ import type { User, Session } from '@supabase/supabase-js';
 interface Profile {
   id: string;
   first_name: string;
+  middle_name?: string;
   last_name: string;
-  email: string;
+  email?: string;
   status: string;
+  mobile_number?: string;
+  address?: string;
+  birthday?: string;
+  created_at?: string;
+  avatar_url?: string;
+  bio?: string;
 }
 
 interface AuthContextType {
@@ -15,9 +22,13 @@ interface AuthContextType {
   session: Session | null;
   profile: Profile | null;
   loading: boolean;
+  isAuthenticated: boolean;
+  isVerified: boolean;
+  isAdmin: boolean;
   signUp: (email: string, password: string, metadata: { first_name: string; last_name: string }) => Promise<{ error: any }>;
   signIn: (email: string, password: string) => Promise<{ error: any }>;
   signOut: () => Promise<void>;
+  refreshProfile: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | null>(null);
@@ -32,6 +43,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
+  const [isAdmin, setIsAdmin] = useState(false);
   const [loading, setLoading] = useState(true);
 
   const fetchProfile = useCallback(async (userId: string) => {
@@ -39,11 +51,25 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (data) setProfile(data as Profile);
   }, []);
 
+  const fetchRole = useCallback(async (userId: string) => {
+    const { data } = await supabase.from('user_roles').select('role').eq('user_id', userId);
+    if (data) setIsAdmin(data.some(r => r.role === 'admin'));
+  }, []);
+
+  const refreshProfile = useCallback(async () => {
+    if (user) {
+      await fetchProfile(user.id);
+    }
+  }, [user, fetchProfile]);
+
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
       setUser(session?.user ?? null);
-      if (session?.user) fetchProfile(session.user.id);
+      if (session?.user) {
+        fetchProfile(session.user.id);
+        fetchRole(session.user.id);
+      }
       setLoading(false);
     });
 
@@ -52,14 +78,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setUser(session?.user ?? null);
       if (session?.user) {
         await fetchProfile(session.user.id);
+        await fetchRole(session.user.id);
       } else {
         setProfile(null);
+        setIsAdmin(false);
       }
       setLoading(false);
     });
 
     return () => subscription.unsubscribe();
-  }, [fetchProfile]);
+  }, [fetchProfile, fetchRole]);
 
   const signUp = async (email: string, password: string, metadata: { first_name: string; last_name: string }) => {
     const { error } = await supabase.auth.signUp({
@@ -80,10 +108,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setUser(null);
     setSession(null);
     setProfile(null);
+    setIsAdmin(false);
   };
 
+  const isAuthenticated = !!user;
+  const isVerified = profile?.status === 'verified';
+
   return (
-    <AuthContext.Provider value={{ user, session, profile, loading, signUp, signIn, signOut }}>
+    <AuthContext.Provider value={{ user, session, profile, loading, isAuthenticated, isVerified, isAdmin, signUp, signIn, signOut, refreshProfile }}>
       {children}
     </AuthContext.Provider>
   );
