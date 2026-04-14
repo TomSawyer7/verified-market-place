@@ -75,6 +75,28 @@ export type FaceTecStatus =
   | { phase: 'error'; message: string };
 
 // ── Script Loader ──
+// ── Utility: check if running in an iframe ──
+export function isRunningInIframe(): boolean {
+  try { return window.self !== window.top; } catch { return true; }
+}
+
+// ── Utility: pre-check camera permission ──
+export async function checkCameraPermission(): Promise<{ granted: boolean; error?: string }> {
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+    stream.getTracks().forEach(t => t.stop());
+    return { granted: true };
+  } catch (err: any) {
+    if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError')
+      return { granted: false, error: 'Camera permission denied. Please allow camera access in your browser settings.' };
+    if (err.name === 'NotFoundError')
+      return { granted: false, error: 'No camera detected on this device.' };
+    if (err.name === 'NotReadableError')
+      return { granted: false, error: 'Camera is in use by another application. Please close it and try again.' };
+    return { granted: false, error: `Camera error: ${err.message || 'Unknown'}` };
+  }
+}
+
 let sdkLoadPromise: Promise<boolean> | null = null;
 
 function loadFaceTecScript(): Promise<boolean> {
