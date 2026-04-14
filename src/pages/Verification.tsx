@@ -12,10 +12,10 @@ import { Skeleton } from '@/components/ui/skeleton';
 import {
   Upload, Camera, ShieldCheck, AlertCircle,
   CheckCircle, Clock, XCircle, FileImage, User, RefreshCw,
-  Monitor, ArrowLeft, Send
+  Monitor, ArrowLeft, Send, Loader2, ScanFace
 } from 'lucide-react';
 import { toast } from 'sonner';
-import { createBiometricProvider, type BiometricProvider } from '@/lib/facetec';
+import { createBiometricProvider, type BiometricProvider, type FaceTecStatus } from '@/lib/facetec';
 import PhilSysScreenshotVerifier, { type ScreenshotVerificationResult } from '@/components/verification/PhilSysScreenshotVerifier';
 
 type VerificationData = {
