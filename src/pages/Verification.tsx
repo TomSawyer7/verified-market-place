@@ -111,13 +111,9 @@ const Verification = () => {
   const getStep = (): number => {
     if (!verification) return 0;
     if (verification.philsys_status === 'verified' && verification.biometric_status === 'verified') return 4; // done
-    // Step 0: need screenshot
     if (!verification.screenshot_url && !screenshotSaved) return 0;
-    // Step 1: need ID docs + details
     if (!verification.id_front_url || !verification.id_back_url || !verification.id_last_name || !verification.id_first_name) return 1;
-    // Step 2: need liveness
     if (!verification.selfie_url) return 2;
-    // Step 3: review (already submitted but waiting)
     return 3;
   };
 
@@ -131,7 +127,6 @@ const Verification = () => {
     setScreenshotResult(result);
     if (!user || !verification) return;
 
-    // Upload screenshot image to storage
     const blob = await fetch(result.imageDataUrl).then(r => r.blob());
     const path = `${user.id}/philsys_screenshot_${Date.now()}.png`;
     const { error: uploadError } = await supabase.storage.from('verification-docs').upload(path, blob);
@@ -195,7 +190,7 @@ const Verification = () => {
   const handleSaveDetails = async () => {
     if (!user || !verification) return;
     if (!formData.id_last_name || !formData.id_first_name || !formData.id_date_of_birth || !formData.id_sex) {
-      toast.error('Punan ang lahat ng required fields.');
+      toast.error('Please fill in all required fields.');
       return;
     }
     setSavingForm(true);
@@ -238,7 +233,7 @@ const Verification = () => {
       setCameraActive(true);
       runLivenessCheck();
     } catch {
-      toast.error('Kailangan ang camera access para sa liveness check');
+      toast.error('Camera access is required for the liveness check');
     }
   }, []);
 
@@ -251,13 +246,13 @@ const Verification = () => {
   }, []);
 
   const runLivenessCheck = async () => {
-    const challenges = ['Pumikit ng mata (Blink)', 'Lumingon nang bahagya sa kaliwa', 'Ngumiti para sa camera', 'Tumango ng bahagya'];
+    const challenges = ['Blink your eyes', 'Turn your head slightly to the left', 'Smile for the camera', 'Nod slightly'];
     for (const challenge of challenges) {
       setLivenessStep(challenge);
       await new Promise(r => setTimeout(r, 2500));
     }
 
-    setLivenessStep('Kinukuha ang selfie...');
+    setLivenessStep('Capturing selfie...');
     await new Promise(r => setTimeout(r, 1000));
 
     if (videoRef.current && providerRef.current) {
@@ -267,7 +262,7 @@ const Verification = () => {
         setLivenessPassed(true);
         setLivenessStep('✅ Liveness check passed!');
       } else {
-        setLivenessStep('Hindi na-detect ang mukha. Subukan muli.');
+        setLivenessStep('Face not detected. Please try again.');
         setLivenessPassed(false);
       }
     }
@@ -313,7 +308,7 @@ const Verification = () => {
     });
 
     setSubmittingFinal(false);
-    toast.success('Nai-submit na ang iyong verification! Hintayin ang admin approval.');
+    toast.success('Your verification has been submitted! Please wait for admin approval.');
   };
 
   useEffect(() => {
@@ -321,7 +316,7 @@ const Verification = () => {
   }, [stopCamera]);
 
   if (!user) {
-    return <div className="container py-20 text-center"><p className="text-muted-foreground">Mag-login muna para magsimula ng verification.</p></div>;
+    return <div className="container py-20 text-center"><p className="text-muted-foreground">Please log in to start verification.</p></div>;
   }
 
   if (loading) {
@@ -342,7 +337,7 @@ const Verification = () => {
       <div className="mb-8">
         <h1 className="text-2xl md:text-3xl font-bold mb-2">Identity Verification</h1>
         <p className="text-sm text-muted-foreground">
-          Kumpletuhin ang 4 na hakbang upang ma-unlock ang buong marketplace access
+          Complete the 4 steps below to unlock full marketplace access
         </p>
       </div>
 
@@ -352,15 +347,15 @@ const Verification = () => {
           <div className="flex items-start gap-3">
             <XCircle className="h-5 w-5 text-destructive mt-0.5 shrink-0" />
             <div className="flex-1">
-              <p className="font-semibold text-destructive">Na-reject ang Verification</p>
-              <p className="text-sm text-muted-foreground mt-1">Dahilan: {verification.admin_reject_reason}</p>
-              <p className="text-sm text-muted-foreground mt-0.5">Mangyaring i-submit muli ang iyong mga dokumento.</p>
+              <p className="font-semibold text-destructive">Verification Rejected</p>
+              <p className="text-sm text-muted-foreground mt-1">Reason: {verification.admin_reject_reason}</p>
+              <p className="text-sm text-muted-foreground mt-0.5">Please re-submit your documents.</p>
               <Button size="sm" variant="outline" className="mt-3 gap-1.5" onClick={() => {
                 setIdFrontFile(null); setIdBackFile(null);
                 setSelfieBlob(null); setLivenessPassed(false);
                 setScreenshotResult(null); setScreenshotSaved(false);
               }}>
-                <RefreshCw className="h-3.5 w-3.5" /> I-submit Muli
+                <RefreshCw className="h-3.5 w-3.5" /> Re-submit
               </Button>
             </div>
           </div>
@@ -373,7 +368,7 @@ const Verification = () => {
           <CardContent className="p-6 text-center">
             <ShieldCheck className="h-16 w-16 text-accent mx-auto mb-4" />
             <h2 className="text-2xl font-bold text-accent mb-2">Fully Verified!</h2>
-            <p className="text-muted-foreground">Na-verify na ang iyong identity. Maaari ka nang mag-access ng buong marketplace.</p>
+            <p className="text-muted-foreground">Your identity has been verified. You now have full marketplace access.</p>
           </CardContent>
         </Card>
       )}
@@ -384,7 +379,7 @@ const Verification = () => {
           <CardContent className="p-6 text-center">
             <Clock className="h-12 w-12 text-yellow-500 mx-auto mb-3" />
             <h2 className="text-xl font-bold mb-2">Under Review</h2>
-            <p className="text-muted-foreground text-sm">Pinoproseso na ang iyong mga dokumento. Karaniwang tumatagal ng 1–3 araw ang admin approval.</p>
+            <p className="text-muted-foreground text-sm">Your documents are being processed. Admin approval typically takes 1–3 days.</p>
           </CardContent>
         </Card>
       )}
@@ -399,7 +394,7 @@ const Verification = () => {
               ))}
             </div>
             <Progress value={(currentStep / PHASES.length) * 100} className="h-2" />
-            <p className="text-xs text-muted-foreground mt-2">Hakbang {Math.min(currentStep + 1, PHASES.length)} ng {PHASES.length}</p>
+            <p className="text-xs text-muted-foreground mt-2">Step {Math.min(currentStep + 1, PHASES.length)} of {PHASES.length}</p>
           </div>
 
           {/* ===== STEP 1: PhilSys eVerify Screenshot ===== */}
@@ -409,10 +404,10 @@ const Verification = () => {
                 <div>
                   <CardTitle className="flex items-center gap-2 text-base">
                     {screenshotSaved || verification?.screenshot_url ? <CheckCircle className="h-4 w-4 text-accent" /> : <Monitor className="h-4 w-4" />}
-                    Hakbang 1: PhilSys eVerify Verification
+                    Step 1: PhilSys eVerify Verification
                   </CardTitle>
                   <CardDescription className="mt-1">
-                    I-verify ang iyong National ID sa official PhilSys portal at i-upload ang screenshot ng resulta
+                    Verify your National ID on the official PhilSys portal and upload a screenshot of the result
                   </CardDescription>
                 </div>
                 <Badge variant={screenshotSaved || verification?.screenshot_url ? 'default' : 'secondary'}>
@@ -424,7 +419,7 @@ const Verification = () => {
               {screenshotSaved || verification?.screenshot_url ? (
                 <div className="flex items-center gap-2 text-accent bg-accent/10 p-3 rounded-lg text-sm">
                   <CheckCircle className="h-5 w-5" />
-                  <span className="font-medium">Na-upload na ang eVerify screenshot</span>
+                  <span className="font-medium">eVerify screenshot uploaded</span>
                 </div>
               ) : (
                 <PhilSysScreenshotVerifier
@@ -443,10 +438,10 @@ const Verification = () => {
                 <div>
                   <CardTitle className="flex items-center gap-2 text-base">
                     {verification?.id_last_name && verification?.id_front_url ? <CheckCircle className="h-4 w-4 text-accent" /> : <FileImage className="h-4 w-4" />}
-                    Hakbang 2: ID Upload at Detalye
+                    Step 2: ID Upload & Details
                   </CardTitle>
                   <CardDescription className="mt-1">
-                    I-upload ang harap at likod ng iyong National ID, at punan ang mga detalye
+                    Upload the front and back of your National ID, then fill in your details
                   </CardDescription>
                 </div>
                 <Badge variant={verification?.id_last_name && verification?.id_front_url ? 'default' : 'secondary'}>
@@ -458,7 +453,7 @@ const Verification = () => {
               {currentStep < 1 ? (
                 <div className="text-center py-6 text-muted-foreground">
                   <FileImage className="h-12 w-12 mx-auto mb-3 opacity-30" />
-                  <p className="text-sm">Kumpletuhin muna ang Hakbang 1 para ma-unlock ito.</p>
+                  <p className="text-sm">Complete Step 1 first to unlock this step.</p>
                 </div>
               ) : (
                 <div className="space-y-6">
@@ -466,14 +461,14 @@ const Verification = () => {
                   {verification?.id_front_url && verification?.id_back_url ? (
                     <div className="flex items-center gap-2 text-accent bg-accent/10 p-3 rounded-lg text-sm">
                       <CheckCircle className="h-5 w-5" />
-                      <span className="font-medium">Na-upload na ang mga dokumento</span>
+                      <span className="font-medium">Documents uploaded</span>
                     </div>
                   ) : (
                     <div className="space-y-4">
-                      <p className="text-sm font-medium">I-upload ang harap at likod ng iyong ID. Siguraduhing malinaw ang kuha.</p>
+                      <p className="text-sm font-medium">Upload the front and back of your ID. Make sure the images are clear and readable.</p>
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div className="space-y-2">
-                          <Label>Harap ng ID (Front)</Label>
+                          <Label>Front of ID</Label>
                           <div className="border-2 border-dashed rounded-lg p-6 text-center cursor-pointer hover:border-primary/50 transition-colors" onClick={() => document.getElementById('id-front-upload')?.click()}>
                             {idFrontFile ? <span className="text-sm text-muted-foreground">{idFrontFile.name}</span> : (
                               <><Upload className="h-8 w-8 text-muted-foreground mx-auto mb-2" /><p className="text-xs text-muted-foreground">Front of ID</p></>
@@ -482,7 +477,7 @@ const Verification = () => {
                           </div>
                         </div>
                         <div className="space-y-2">
-                          <Label>Likod ng ID (Back)</Label>
+                          <Label>Back of ID</Label>
                           <div className="border-2 border-dashed rounded-lg p-6 text-center cursor-pointer hover:border-primary/50 transition-colors" onClick={() => document.getElementById('id-back-upload')?.click()}>
                             {idBackFile ? <span className="text-sm text-muted-foreground">{idBackFile.name}</span> : (
                               <><Upload className="h-8 w-8 text-muted-foreground mx-auto mb-2" /><p className="text-xs text-muted-foreground">Back of ID</p></>
@@ -492,7 +487,7 @@ const Verification = () => {
                         </div>
                       </div>
                       <Button className="w-full" disabled={!idFrontFile || !idBackFile || uploading} onClick={handleDocumentUpload}>
-                        {uploading ? 'Ina-upload...' : 'I-submit ang Mga Dokumento'}
+                        {uploading ? 'Uploading...' : 'Submit Documents'}
                       </Button>
                     </div>
                   )}
@@ -503,46 +498,46 @@ const Verification = () => {
                       {verification?.id_last_name && currentStep > 1 ? (
                         <div className="flex items-center gap-2 text-accent bg-accent/10 p-3 rounded-lg text-sm">
                           <CheckCircle className="h-5 w-5" />
-                          <span className="font-medium">Na-save na ang personal details</span>
+                          <span className="font-medium">Personal details saved</span>
                         </div>
                       ) : (
                         <div className="space-y-4">
                           <div className="rounded-lg border border-border bg-muted/50 p-3">
                             <p className="text-xs text-muted-foreground">
-                              ⚠️ Punan ang mga sumusunod na detalye nang eksakto gaya ng nakasulat sa iyong ID. Kung hindi tugma, i-click ang "Retry" para i-upload muli.
+                              ⚠️ Fill in the following details exactly as they appear on your ID. If the information doesn't match, click "Retry" to re-upload your images.
                             </p>
                           </div>
                           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                             <div className="space-y-1.5">
-                              <Label htmlFor="id_last_name">Apelyido (Last Name) *</Label>
+                              <Label htmlFor="id_last_name">Last Name *</Label>
                               <Input id="id_last_name" value={formData.id_last_name} onChange={e => setFormData(p => ({ ...p, id_last_name: e.target.value }))} placeholder="DELA CRUZ" />
                             </div>
                             <div className="space-y-1.5">
-                              <Label htmlFor="id_first_name">Pangalan (First Name) *</Label>
+                              <Label htmlFor="id_first_name">First Name *</Label>
                               <Input id="id_first_name" value={formData.id_first_name} onChange={e => setFormData(p => ({ ...p, id_first_name: e.target.value }))} placeholder="JUAN" />
                             </div>
                             <div className="space-y-1.5">
-                              <Label htmlFor="id_middle_name">Gitnang Pangalan (Middle Name)</Label>
+                              <Label htmlFor="id_middle_name">Middle Name</Label>
                               <Input id="id_middle_name" value={formData.id_middle_name} onChange={e => setFormData(p => ({ ...p, id_middle_name: e.target.value }))} placeholder="SANTOS" />
                             </div>
                             <div className="space-y-1.5">
-                              <Label htmlFor="id_date_of_birth">Petsa ng Kapanganakan (Date of Birth) *</Label>
+                              <Label htmlFor="id_date_of_birth">Date of Birth *</Label>
                               <Input id="id_date_of_birth" type="date" value={formData.id_date_of_birth} onChange={e => setFormData(p => ({ ...p, id_date_of_birth: e.target.value }))} />
                             </div>
                             <div className="space-y-1.5">
-                              <Label>Kasarian (Sex) *</Label>
+                              <Label>Sex *</Label>
                               <Select value={formData.id_sex} onValueChange={v => setFormData(p => ({ ...p, id_sex: v }))}>
-                                <SelectTrigger><SelectValue placeholder="Pumili" /></SelectTrigger>
+                                <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
                                 <SelectContent>
-                                  <SelectItem value="Male">Male / Lalaki</SelectItem>
-                                  <SelectItem value="Female">Female / Babae</SelectItem>
+                                  <SelectItem value="Male">Male</SelectItem>
+                                  <SelectItem value="Female">Female</SelectItem>
                                 </SelectContent>
                               </Select>
                             </div>
                             <div className="space-y-1.5">
-                              <Label>Uri ng Dugo (Blood Type)</Label>
+                              <Label>Blood Type</Label>
                               <Select value={formData.id_blood_type} onValueChange={v => setFormData(p => ({ ...p, id_blood_type: v }))}>
-                                <SelectTrigger><SelectValue placeholder="Pumili" /></SelectTrigger>
+                                <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
                                 <SelectContent>
                                   {['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'].map(bt => (
                                     <SelectItem key={bt} value={bt}>{bt}</SelectItem>
@@ -551,23 +546,23 @@ const Verification = () => {
                               </Select>
                             </div>
                             <div className="space-y-1.5">
-                              <Label>Katayuang Sibil (Marital Status)</Label>
+                              <Label>Marital Status</Label>
                               <Select value={formData.id_marital_status} onValueChange={v => setFormData(p => ({ ...p, id_marital_status: v }))}>
-                                <SelectTrigger><SelectValue placeholder="Pumili" /></SelectTrigger>
+                                <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
                                 <SelectContent>
-                                  {['Single / Walang Asawa', 'Married / May Asawa', 'Widowed / Biyuda/Biyudo', 'Separated / Hiwalay', 'Divorced'].map(ms => (
+                                  {['Single', 'Married', 'Widowed', 'Separated', 'Divorced'].map(ms => (
                                     <SelectItem key={ms} value={ms}>{ms}</SelectItem>
                                   ))}
                                 </SelectContent>
                               </Select>
                             </div>
                             <div className="space-y-1.5">
-                              <Label htmlFor="id_place_of_birth">Lugar ng Kapanganakan (Place of Birth)</Label>
+                              <Label htmlFor="id_place_of_birth">Place of Birth</Label>
                               <Input id="id_place_of_birth" value={formData.id_place_of_birth} onChange={e => setFormData(p => ({ ...p, id_place_of_birth: e.target.value }))} placeholder="Manila, Philippines" />
                             </div>
                           </div>
                           <Button className="w-full" disabled={!formData.id_last_name || !formData.id_first_name || !formData.id_date_of_birth || !formData.id_sex || savingForm} onClick={handleSaveDetails}>
-                            {savingForm ? 'Sine-save...' : 'I-save ang Detalye at Magpatuloy'}
+                            {savingForm ? 'Saving...' : 'Save Details & Continue'}
                           </Button>
                         </div>
                       )}
@@ -585,10 +580,10 @@ const Verification = () => {
                 <div>
                   <CardTitle className="flex items-center gap-2 text-base">
                     {verification?.selfie_url ? <CheckCircle className="h-4 w-4 text-accent" /> : <Camera className="h-4 w-4" />}
-                    Hakbang 3: Face Verification (Liveness Check)
+                    Step 3: Face Verification (Liveness Check)
                   </CardTitle>
                   <CardDescription className="mt-1">
-                    Para sa huling bahagi ng security check, kailangan ng maikling facial scan upang makumpirma na ikaw ang may-ari ng ID
+                    For the final security check, we need a short facial scan to confirm that you are the owner of the submitted ID
                   </CardDescription>
                 </div>
                 <Badge variant={verification?.selfie_url ? 'default' : 'secondary'}>
@@ -600,7 +595,7 @@ const Verification = () => {
               {currentStep < 2 ? (
                 <div className="text-center py-6 text-muted-foreground">
                   <Camera className="h-12 w-12 mx-auto mb-3 opacity-30" />
-                  <p className="text-sm">Kumpletuhin muna ang mga naunang hakbang.</p>
+                  <p className="text-sm">Complete the previous steps first.</p>
                 </div>
               ) : verification?.selfie_url ? (
                 <div className="flex items-center gap-2 text-accent bg-accent/10 p-3 rounded-lg text-sm">
@@ -614,7 +609,7 @@ const Verification = () => {
                     {!cameraActive && (
                       <div className="absolute inset-0 flex flex-col items-center justify-center gap-3">
                         <Camera className="h-12 w-12 text-muted-foreground" />
-                        <Button onClick={startCamera}>Simulan ang Face Verification</Button>
+                        <Button onClick={startCamera}>Start Face Verification</Button>
                       </div>
                     )}
                     {cameraActive && livenessStep && (
@@ -624,7 +619,7 @@ const Verification = () => {
                     )}
                   </div>
                   <Button className="w-full" disabled={!livenessPassed || !selfieBlob || submittingBiometric} onClick={handleBiometricSubmit}>
-                    {submittingBiometric ? 'Sinusubmit...' : 'I-submit ang Biometric'}
+                    {submittingBiometric ? 'Submitting...' : 'Submit Biometric'}
                   </Button>
                 </div>
               )}
@@ -636,17 +631,17 @@ const Verification = () => {
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-base">
                 <ShieldCheck className="h-4 w-4" />
-                Hakbang 4: Review at Kumpirmahin
+                Step 4: Review & Confirm
               </CardTitle>
               <CardDescription className="mt-1">
-                Suriin ang lahat ng impormasyon bago i-submit para sa admin approval
+                Review all information before submitting for admin approval
               </CardDescription>
             </CardHeader>
             <CardContent>
               {currentStep < 3 ? (
                 <div className="text-center py-6 text-muted-foreground">
                   <ShieldCheck className="h-12 w-12 mx-auto mb-3 opacity-30" />
-                  <p className="text-sm">Kumpletuhin muna ang lahat ng naunang hakbang.</p>
+                  <p className="text-sm">Complete all previous steps first.</p>
                 </div>
               ) : (
                 <div className="space-y-4">
@@ -662,27 +657,27 @@ const Verification = () => {
                           </td>
                         </tr>
                         <tr className="border-b border-border">
-                          <td className="px-4 py-3 font-medium bg-muted/50">Buong Pangalan</td>
+                          <td className="px-4 py-3 font-medium bg-muted/50">Full Name</td>
                           <td className="px-4 py-3">{formData.id_first_name} {formData.id_middle_name ? formData.id_middle_name + ' ' : ''}{formData.id_last_name}</td>
                         </tr>
                         <tr className="border-b border-border">
-                          <td className="px-4 py-3 font-medium bg-muted/50">Petsa ng Kapanganakan</td>
+                          <td className="px-4 py-3 font-medium bg-muted/50">Date of Birth</td>
                           <td className="px-4 py-3">{formData.id_date_of_birth || '—'}</td>
                         </tr>
                         <tr className="border-b border-border">
-                          <td className="px-4 py-3 font-medium bg-muted/50">Kasarian</td>
+                          <td className="px-4 py-3 font-medium bg-muted/50">Sex</td>
                           <td className="px-4 py-3">{formData.id_sex || '—'}</td>
                         </tr>
                         <tr className="border-b border-border">
-                          <td className="px-4 py-3 font-medium bg-muted/50">Uri ng Dugo</td>
+                          <td className="px-4 py-3 font-medium bg-muted/50">Blood Type</td>
                           <td className="px-4 py-3">{formData.id_blood_type || '—'}</td>
                         </tr>
                         <tr className="border-b border-border">
-                          <td className="px-4 py-3 font-medium bg-muted/50">Katayuang Sibil</td>
+                          <td className="px-4 py-3 font-medium bg-muted/50">Marital Status</td>
                           <td className="px-4 py-3">{formData.id_marital_status || '—'}</td>
                         </tr>
                         <tr className="border-b border-border">
-                          <td className="px-4 py-3 font-medium bg-muted/50">Lugar ng Kapanganakan</td>
+                          <td className="px-4 py-3 font-medium bg-muted/50">Place of Birth</td>
                           <td className="px-4 py-3">{formData.id_place_of_birth || '—'}</td>
                         </tr>
                         <tr>
@@ -699,17 +694,17 @@ const Verification = () => {
                   {/* Warning */}
                   <div className="rounded-lg border border-yellow-500/30 bg-yellow-500/5 p-3">
                     <p className="text-xs text-muted-foreground">
-                      <strong className="text-foreground">⚠️ Paalala:</strong> Pakisuri nang mabuti ang lahat ng impormasyon. Sa pag-click ng "Confirm & Submit," pinapatunayan mo na ang lahat ng datos ay totoo at tama.
+                      <strong className="text-foreground">⚠️ Reminder:</strong> Please review all information carefully. By clicking "Confirm & Submit," you certify that all details are true and accurate.
                     </p>
                   </div>
 
                   {/* Actions */}
                   <div className="flex gap-3">
                     <Button variant="outline" className="flex-1 gap-2" onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}>
-                      <ArrowLeft className="h-4 w-4" /> Bumalik / I-edit
+                      <ArrowLeft className="h-4 w-4" /> Back / Edit
                     </Button>
                     <Button className="flex-1 gap-2" disabled={submittingFinal} onClick={handleFinalSubmit}>
-                      {submittingFinal ? 'Sinusubmit...' : <><Send className="h-4 w-4" /> Confirm & Submit</>}
+                      {submittingFinal ? 'Submitting...' : <><Send className="h-4 w-4" /> Confirm & Submit</>}
                     </Button>
                   </div>
                 </div>

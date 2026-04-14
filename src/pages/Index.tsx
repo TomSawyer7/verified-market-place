@@ -6,6 +6,7 @@ import {
   Fingerprint, Eye, FileWarning, Activity, Globe, AlertTriangle
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
+import heroBg from '@/assets/hero-bg.jpg';
 
 const Index = () => {
   const { isAuthenticated } = useAuth();
@@ -23,9 +24,14 @@ const Index = () => {
 
   return (
     <div className="min-h-[calc(100vh-3.5rem)]">
-      {/* Hero */}
-      <section className="border-b">
-        <div className="container py-24 md:py-32">
+      {/* Hero with background image */}
+      <section className="relative border-b overflow-hidden">
+        <div
+          className="absolute inset-0 bg-cover bg-center bg-no-repeat"
+          style={{ backgroundImage: `url(${heroBg})` }}
+        />
+        <div className="absolute inset-0 bg-gradient-to-r from-background/95 via-background/80 to-background/40" />
+        <div className="container relative py-24 md:py-32">
           <div className="max-w-2xl space-y-6">
             <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full border text-xs font-medium tracking-wide uppercase">
               <Lock className="h-3 w-3" />
