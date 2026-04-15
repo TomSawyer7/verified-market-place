@@ -38,6 +38,7 @@ type VerificationData = {
   admin_reject_reason: string | null;
   screenshot_url: string | null;
   screenshot_score: number | null;
+  qr_code_url: string | null;
 };
 
 const PHASES = [
@@ -53,9 +54,12 @@ const Verification = () => {
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
 
-  // Step 1: Screenshot
+  // Step 1: Screenshot + QR Code
   const [screenshotResult, setScreenshotResult] = useState<ScreenshotVerificationResult | null>(null);
   const [screenshotSaved, setScreenshotSaved] = useState(false);
+  const [qrCodeFile, setQrCodeFile] = useState<File | null>(null);
+  const [qrCodeSaved, setQrCodeSaved] = useState(false);
+  const [uploadingStep1, setUploadingStep1] = useState(false);
 
   // Step 2: ID docs + form
   const [idFrontFile, setIdFrontFile] = useState<File | null>(null);
@@ -86,7 +90,7 @@ const Verification = () => {
       if (!user) return;
       const { data } = await supabase
         .from('verifications')
-        .select('id, philsys_status, biometric_status, id_front_url, id_back_url, selfie_url, liveness_result, face_match_score, id_last_name, id_first_name, id_middle_name, id_date_of_birth, id_sex, id_blood_type, id_marital_status, id_place_of_birth, admin_reject_reason, screenshot_url, screenshot_score')
+        .select('id, philsys_status, biometric_status, id_front_url, id_back_url, selfie_url, liveness_result, face_match_score, id_last_name, id_first_name, id_middle_name, id_date_of_birth, id_sex, id_blood_type, id_marital_status, id_place_of_birth, admin_reject_reason, screenshot_url, screenshot_score, qr_code_url')
         .eq('user_id', user.id)
         .single();
       if (data) {
@@ -102,6 +106,9 @@ const Verification = () => {
         if (data.screenshot_url) {
           setScreenshotSaved(true);
         }
+        if (data.qr_code_url) {
+          setQrCodeSaved(true);
+        }
       }
       setLoading(false);
     };
@@ -112,7 +119,8 @@ const Verification = () => {
   const getStep = (): number => {
     if (!verification) return 0;
     if (verification.philsys_status === 'verified' && verification.biometric_status === 'verified') return 4; // done
-    if (!verification.screenshot_url && !screenshotSaved) return 0;
+    // Step 1: Need both screenshot + QR uploaded AND admin approved (philsys_status === 'verified')
+    if (!verification.screenshot_url || !verification.qr_code_url || verification.philsys_status !== 'verified') return 0;
     if (!verification.id_front_url || !verification.id_back_url || !verification.id_last_name || !verification.id_first_name) return 1;
     if (!verification.selfie_url) return 2;
     return 3;
@@ -121,6 +129,7 @@ const Verification = () => {
   const currentStep = getStep();
   const isRejected = verification?.philsys_status === 'rejected' || verification?.biometric_status === 'rejected';
   const isFullyVerified = verification?.philsys_status === 'verified' && verification?.biometric_status === 'verified';
+  const isWaitingStep1Review = verification?.screenshot_url && verification?.qr_code_url && verification?.philsys_status === 'pending';
   const isWaitingReview = verification?.selfie_url && verification?.biometric_status === 'pending' && verification?.id_last_name && verification?.screenshot_url;
 
   // === Step 1: Save screenshot ===
@@ -161,11 +170,50 @@ const Verification = () => {
 
       setScreenshotSaved(true);
       setVerification(prev => prev ? { ...prev, screenshot_url: path, screenshot_score: result.score } : null);
-      toast.success('Screenshot saved! Proceed to Step 2.');
+      toast.success('Screenshot saved! Now upload your QR code.');
     } catch (err) {
       console.error('handleScreenshotComplete error:', err);
       toast.error('An error occurred while saving the screenshot. Please try again.');
     }
+  };
+
+  // === Step 1b: Upload QR code and submit for admin review ===
+  const handleStep1Submit = async () => {
+    if (!qrCodeFile || !user || !verification) return;
+    setUploadingStep1(true);
+    try {
+      const qrPath = `${user.id}/qr_code_${Date.now()}.${qrCodeFile.name.split('.').pop()}`;
+      const { error: uploadError } = await supabase.storage.from('verification-docs').upload(qrPath, qrCodeFile);
+      if (uploadError) {
+        toast.error('Failed to upload QR code image. Please try again.');
+        setUploadingStep1(false);
+        return;
+      }
+
+      const { error: updateError } = await supabase.from('verifications').update({
+        qr_code_url: qrPath,
+        philsys_status: 'pending' as any,
+      } as any).eq('id', verification.id);
+
+      if (updateError) {
+        toast.error('Failed to save QR code data.');
+        setUploadingStep1(false);
+        return;
+      }
+
+      await supabase.from('audit_trail').insert({
+        user_id: user.id, action: 'qr_code_uploaded',
+        event_type: 'verification', details: 'QR code image uploaded for admin review',
+      });
+
+      setQrCodeSaved(true);
+      setVerification(prev => prev ? { ...prev, qr_code_url: qrPath, philsys_status: 'pending' } : null);
+      toast.success('Step 1 submitted! Waiting for admin approval.');
+    } catch (err) {
+      console.error('QR upload error:', err);
+      toast.error('An error occurred. Please try again.');
+    }
+    setUploadingStep1(false);
   };
 
   // === Step 2: Upload ID docs ===
@@ -417,6 +465,7 @@ const Verification = () => {
                 setIdFrontFile(null); setIdBackFile(null);
                 setSelfieBlob(null); setLivenessPassed(false);
                 setScreenshotResult(null); setScreenshotSaved(false);
+                setQrCodeFile(null); setQrCodeSaved(false);
               }}>
                 <RefreshCw className="h-3.5 w-3.5" /> Re-submit
               </Button>
@@ -460,36 +509,103 @@ const Verification = () => {
             <p className="text-xs text-muted-foreground mt-2">Step {Math.min(currentStep + 1, PHASES.length)} of {PHASES.length}</p>
           </div>
 
-          {/* ===== STEP 1: PhilSys eVerify Screenshot ===== */}
+          {/* ===== STEP 1: PhilSys eVerify Screenshot + QR Code ===== */}
           <Card className={`mb-6 ${currentStep > 0 ? 'opacity-60' : ''}`}>
             <CardHeader>
               <div className="flex items-center justify-between">
                 <div>
                   <CardTitle className="flex items-center gap-2 text-base">
-                    {screenshotSaved || verification?.screenshot_url ? <CheckCircle className="h-4 w-4 text-accent" /> : <Monitor className="h-4 w-4" />}
-                    Step 1: PhilSys eVerify Verification
+                    {verification?.philsys_status === 'verified' ? <CheckCircle className="h-4 w-4 text-accent" /> : <Monitor className="h-4 w-4" />}
+                    Step 1: PhilSys eVerify & QR Code Upload
                   </CardTitle>
                   <CardDescription className="mt-1">
-                    Verify your National ID on the official PhilSys portal and upload a screenshot of the result
+                    Upload your eVerify screenshot and the QR code from the back of your National ID for admin review
                   </CardDescription>
                 </div>
-                <Badge variant={screenshotSaved || verification?.screenshot_url ? 'default' : 'secondary'}>
-                  {screenshotSaved || verification?.screenshot_url ? 'Completed' : 'Required'}
+                <Badge variant={verification?.philsys_status === 'verified' ? 'default' : 'secondary'}>
+                  {verification?.philsys_status === 'verified' ? 'Approved' : isWaitingStep1Review ? 'Under Review' : 'Required'}
                 </Badge>
               </div>
             </CardHeader>
             <CardContent>
-              {screenshotSaved || verification?.screenshot_url ? (
+              {verification?.philsys_status === 'verified' ? (
                 <div className="flex items-center gap-2 text-accent bg-accent/10 p-3 rounded-lg text-sm">
                   <CheckCircle className="h-5 w-5" />
-                  <span className="font-medium">eVerify screenshot uploaded</span>
+                  <span className="font-medium">Step 1 approved by admin — proceed to Step 2</span>
+                </div>
+              ) : isWaitingStep1Review ? (
+                <div className="text-center py-6">
+                  <Clock className="h-12 w-12 text-yellow-500 mx-auto mb-3" />
+                  <p className="font-semibold mb-1">Waiting for Admin Approval</p>
+                  <p className="text-sm text-muted-foreground">Your screenshot and QR code have been submitted. An admin will review and approve before you can proceed to Step 2.</p>
                 </div>
               ) : (
-                <PhilSysScreenshotVerifier
-                  registeredName={registeredName}
-                  onVerificationComplete={handleScreenshotComplete}
-                  disabled={!!verification?.screenshot_url}
-                />
+                <div className="space-y-6">
+                  {/* Screenshot Upload */}
+                  <div>
+                    <p className="text-sm font-medium mb-2">1. eVerify Screenshot</p>
+                    {screenshotSaved || verification?.screenshot_url ? (
+                      <div className="flex items-center gap-2 text-accent bg-accent/10 p-3 rounded-lg text-sm">
+                        <CheckCircle className="h-5 w-5" />
+                        <span className="font-medium">eVerify screenshot uploaded</span>
+                      </div>
+                    ) : (
+                      <PhilSysScreenshotVerifier
+                        registeredName={registeredName}
+                        onVerificationComplete={handleScreenshotComplete}
+                        disabled={!!verification?.screenshot_url}
+                      />
+                    )}
+                  </div>
+
+                  {/* QR Code Upload */}
+                  <div>
+                    <p className="text-sm font-medium mb-2">2. QR Code (Back of National ID)</p>
+                    <p className="text-xs text-muted-foreground mb-3">
+                      Take a clear photo or screenshot of the QR code on the back of your PhilID card.
+                    </p>
+                    {qrCodeSaved || verification?.qr_code_url ? (
+                      <div className="flex items-center gap-2 text-accent bg-accent/10 p-3 rounded-lg text-sm">
+                        <CheckCircle className="h-5 w-5" />
+                        <span className="font-medium">QR code image uploaded</span>
+                      </div>
+                    ) : (
+                      <div className="space-y-3">
+                        <div
+                          className="border-2 border-dashed rounded-lg p-6 text-center cursor-pointer hover:border-primary/50 transition-colors"
+                          onClick={() => document.getElementById('qr-code-upload')?.click()}
+                        >
+                          {qrCodeFile ? (
+                            <span className="text-sm text-muted-foreground">{qrCodeFile.name}</span>
+                          ) : (
+                            <>
+                              <Upload className="h-8 w-8 text-muted-foreground mx-auto mb-2" />
+                              <p className="text-xs text-muted-foreground">Click to upload QR code image</p>
+                            </>
+                          )}
+                          <input
+                            id="qr-code-upload"
+                            type="file"
+                            accept="image/*"
+                            className="hidden"
+                            onChange={e => setQrCodeFile(e.target.files?.[0] || null)}
+                          />
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Submit Step 1 Button */}
+                  {(screenshotSaved || verification?.screenshot_url) && qrCodeFile && !qrCodeSaved && (
+                    <Button
+                      className="w-full"
+                      disabled={uploadingStep1}
+                      onClick={handleStep1Submit}
+                    >
+                      {uploadingStep1 ? 'Uploading QR Code...' : 'Submit Step 1 for Review'}
+                    </Button>
+                  )}
+                </div>
               )}
             </CardContent>
           </Card>
