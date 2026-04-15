@@ -89,26 +89,33 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, [user, fetchProfile, fetchRole]);
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      setUser(session?.user ?? null);
-      syncUserState(session?.user ?? null).finally(() => setLoading(false));
+    let isActive = true;
+
+    const applySession = (nextSession: Session | null, shouldStopLoading = true) => {
+      if (!isActive) return;
+
+      setSession(nextSession);
+      const nextUser = nextSession?.user ?? null;
+      setUser(nextUser);
+
+      void syncUserState(nextUser).finally(() => {
+        if (isActive && shouldStopLoading) {
+          setLoading(false);
+        }
+      });
+    };
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, nextSession) => {
+      applySession(nextSession);
     });
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
-      setSession(session);
-      setUser(session?.user ?? null);
-      await syncUserState(session?.user ?? null);
-      setLoading(false);
+    void supabase.auth.getSession().then(({ data: { session } }) => {
+      applySession(session);
     });
 
     const handleWindowFocus = () => {
-      supabase.auth.getSession().then(({ data: { session } }) => {
-        setSession(session);
-        setUser(session?.user ?? null);
-        if (session?.user) {
-          void syncUserState(session.user);
-        }
+      void supabase.auth.getSession().then(({ data: { session } }) => {
+        applySession(session, false);
       });
     };
 
@@ -116,6 +123,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     document.addEventListener('visibilitychange', handleWindowFocus);
 
     return () => {
+      isActive = false;
       subscription.unsubscribe();
       window.removeEventListener('focus', handleWindowFocus);
       document.removeEventListener('visibilitychange', handleWindowFocus);
