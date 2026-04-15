@@ -14,7 +14,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import {
   ShieldCheck, ShieldAlert, Users, CheckCircle, XCircle, Clock,
   ChevronDown, Eye, UserPlus, Shield, AlertTriangle, Activity,
-  Lock, Fingerprint, Globe, FileImage, User, ScanFace, Flag, Trash2
+  Lock, Fingerprint, Globe, FileImage, User, ScanFace, Flag, Trash2, Monitor
 } from 'lucide-react';
 import { toast } from 'sonner';
 
