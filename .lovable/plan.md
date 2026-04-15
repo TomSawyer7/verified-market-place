@@ -1,51 +1,50 @@
 
 
-## Plan: Fix Authentication & Registration Flow
+## Plan: Add OCR Auto-Fill After ID Front Upload
 
-### Problem Summary
-Five issues: stuck loading states, database trigger warnings, RLS blocking profile creation, email confirmation UX, and WebSocket errors.
+### What This Does
+After the user uploads the front of their National ID in Step 2, the system will automatically extract text (name, date of birth, sex, etc.) from the image using AI-powered OCR via Lovable AI. The extracted data pre-fills the form fields, so users only need to verify/correct instead of typing everything manually.
 
-### Analysis of Current State
-- `handle_new_user()` already has `SET search_path TO 'public'` — no change needed there.
-- The `profiles` table has **no INSERT RLS policy**, but the trigger is `SECURITY DEFINER` which bypasses RLS. However, the trigger may be failing silently if the function owner lacks proper privileges. We should add an INSERT policy as a safety net.
-- `Register.tsx` has try/catch but `setLoading(false)` is called in multiple branches instead of a `finally` block.
-- The "Check your email" screen already exists in Register.tsx — just needs minor cleanup.
-- `client.ts` is auto-managed and should NOT be edited manually. The current file points to a different Supabase URL than the Lovable Cloud project — this is the root cause of many issues.
+### How It Works
+
+```text
+User uploads ID front image
+        │
+        ▼
+  Image sent to Edge Function (OCR)
+        │
+        ▼
+  Lovable AI (Gemini Flash) analyzes image
+        │
+        ▼
+  Extracted fields returned as JSON
+        │
+        ▼
+  Form auto-populated, user reviews & confirms
+```
 
 ### Changes
 
-**1. Database Migration — Add INSERT policy on `profiles` table**
-```sql
-CREATE POLICY "Allow trigger and auth to insert profiles"
-ON public.profiles
-FOR INSERT
-TO authenticated
-WITH CHECK (auth.uid() = id);
-```
-This ensures that even if the trigger context changes, profile creation works.
+**1. New Edge Function: `supabase/functions/ocr-id/index.ts`**
+- Accepts a base64-encoded image of the ID front
+- Sends it to Lovable AI Gateway (Gemini 2.5 Flash — good multimodal + fast) with a prompt asking it to extract Philippine National ID fields: last name, first name, middle name, date of birth, sex, blood type, marital status, place of birth
+- Uses tool calling to return structured JSON output
+- Returns the extracted fields to the client
 
-**2. `src/pages/Register.tsx` — Add `finally` block**
-- Wrap the `handleSubmit` logic so `setLoading(false)` is in a `finally` block, guaranteeing it runs even on unexpected errors.
-- Clean up the Filipino comments to English.
+**2. Update `src/pages/Verification.tsx`**
+- After the front ID file is selected (before or after upload), convert it to base64 and call the `ocr-id` edge function
+- Show a "Scanning ID..." loading indicator on the form section
+- Pre-fill `formData` state with the OCR results
+- Fields remain editable so the user can correct any mistakes
+- Add a small "Auto-filled by OCR" badge near the form to indicate the data was extracted automatically
 
-**3. `src/pages/Login.tsx` — Add `finally` block**
-- Same pattern: move `setLoading(false)` into a `finally` block so the button never gets stuck.
-
-**4. `src/contexts/AuthContext.tsx` — Clean up**
-- Remove Filipino comments.
-- No structural changes needed — the singleton pattern is already correct.
-
-**5. `src/App.tsx` — Remove debug connection check**
-- Remove the `useEffect` that queries a `test` table on mount (causes unnecessary errors and console noise).
-- Remove the Filipino console log messages.
+### Technical Details
+- Model: `google/gemini-2.5-flash` (fast, good multimodal, cost-effective for OCR)
+- The OCR runs client-side-triggered after `handleDocumentUpload` succeeds for the front image
+- No new database tables or migrations needed — data flows into the existing `formData` state and eventually into the `verifications` table via `handleSaveDetails`
+- Audit trail entry added: `ocr_extraction_completed`
 
 ### Files Modified
-- `src/pages/Register.tsx` (finally block, English cleanup)
-- `src/pages/Login.tsx` (finally block)
-- `src/contexts/AuthContext.tsx` (comment cleanup)
-- `src/App.tsx` (remove debug useEffect)
-- Database migration (INSERT policy on profiles)
-
-### Note on `client.ts`
-The `client.ts` file is auto-managed and cannot be edited. It currently points to `pqopxjpgltkqgvachddz.supabase.co` instead of the Lovable Cloud project (`suwtdhtaypfaqjuzofdx.supabase.co`). This mismatch is likely causing WebSocket and connection errors. The file should auto-update to the correct Lovable Cloud credentials — if it doesn't, this is the root cause of most issues.
+- `supabase/functions/ocr-id/index.ts` (new)
+- `src/pages/Verification.tsx` (add OCR call after front ID upload, loading state, auto-fill logic)
 
