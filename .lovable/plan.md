@@ -1,50 +1,62 @@
 
+Goal: gumawa ng gumaganang bagong admin account, pero aayusin muna ang root cause kung bakit hindi lumalabas ang existing admin role.
 
-# Plan: Fix Password Reset Flow
+What I found
+- May `admin` role na sa current backend si `simanthomasalexandre07@gmail.com`.
+- Pero ang app client ay naka-hardcode sa ibang backend/project kaysa sa current project config.
+- Wala ring actual `setup-admin` backend function sa repo kahit ginagamit ito ng Admin Dashboard.
+- Resulta: kahit gumawa o mag-promote tayo ng admin sa current backend, hindi iyon nababasa nang tama ng app. Kaya kung gagawa agad ng bagong admin account ngayon, malamang same issue pa rin.
 
-## Problem
-The `ResetPassword` component registers its own `onAuthStateChange` listener, but the `AuthProvider` (which wraps the entire app) processes the `PASSWORD_RECOVERY` event first — before ResetPassword even mounts. So the component never sees the event and shows "Invalid or expired reset link."
+Implementation plan
+1. Align the app to the correct backend
+- Ayusin ang backend connection para pare-pareho ang auth, database, at backend functions na ginagamit ng app.
+- Ito ang pinaka-root fix; without this, any “new admin account” will still fail in the UI.
 
-## Fix
+2. Fix admin access timing in the frontend
+- Update auth/admin route logic so `/admin` does not redirect habang hindi pa tapos mag-load ang session at roles.
+- Ensure admin state is re-checked after sign-in and when opening the admin page.
 
-**File: `src/pages/ResetPassword.tsx`**
+3. Add a real admin provisioning backend function
+- Gumawa ng secure backend function for admin-only use.
+- Function behavior:
+  - create a new user if the email does not exist yet
+  - ensure `profiles`, `user_roles`, and `verifications` rows exist
+  - assign the `admin` role safely
+  - return clear success/error states
+- If signup provisioning is incomplete, I’ll also restore the missing new-user trigger so future accounts get the required records automatically.
 
-Replace the `useEffect` logic with a more robust approach:
+4. Update the Admin Dashboard to use the real function
+- Replace the current hardcoded function URL call with the supported backend function invocation pattern.
+- Add/adjust the admin creation form so a fresh admin can be created reliably from the dashboard.
 
-1. Check URL hash for `type=recovery` on mount (already there but may not match Supabase's format)
-2. Check if there's already an active session (the auth event already processed by AuthProvider)
-3. Keep the `onAuthStateChange` listener as a fallback
-4. Also check URL search params, since Supabase PKCE flow may use query params instead of hash
+5. Create and verify a brand-new admin account end-to-end
+- Create the new admin account with a fresh email.
+- Confirm the account can sign in.
+- Verify the Admin button appears and `/admin` opens successfully.
+- Test the full flow end-to-end, since you specifically asked that this be tested.
 
-```typescript
-useEffect(() => {
-  // 1. Check hash params
-  const hash = window.location.hash;
-  if (hash.includes('type=recovery')) {
-    setIsRecovery(true);
-    return;
-  }
+Technical details
+```text
+Current state:
+App auth/db client  -> Old backend
+Admin role changes  -> Current backend
+Admin function call -> Current backend project id
+Result              -> split state / broken admin detection
 
-  // 2. Check if session already exists (event already fired)
-  supabase.auth.getSession().then(({ data: { session } }) => {
-    if (session) {
-      setIsRecovery(true);
-    }
-  });
-
-  // 3. Listen for future events
-  const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
-    if (event === 'PASSWORD_RECOVERY') {
-      setIsRecovery(true);
-    }
-  });
-
-  return () => subscription.unsubscribe();
-}, []);
+Target state:
+App auth/db/functions -> Same backend
+Admin creation        -> Real backend function
+Admin UI              -> waits for auth/role loading
+Result                -> new admin account works consistently
 ```
 
-This ensures that even if the recovery event fires before the component mounts, we detect the active session and allow the password update.
+Files likely involved
+- `src/contexts/AuthContext.tsx`
+- `src/pages/AdminDashboard.tsx`
+- `src/integrations/supabase/client.ts` or the project’s backend connection regeneration path
+- `supabase/functions/setup-admin/index.ts` (new)
+- possibly a migration only if the new-user trigger truly needs to be restored
 
-## Testing
-After the fix, I will navigate to the reset password flow in the browser to verify the form renders correctly.
-
+Expected outcome
+- Hindi na masasayang ang oras sa paulit-ulit na pag-promote ng maling account/backend.
+- Magkakaroon tayo ng bagong admin account na tunay na nakakapasok sa Admin Dashboard.
