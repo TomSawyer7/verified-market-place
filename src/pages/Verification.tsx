@@ -465,6 +465,7 @@ const Verification = () => {
                 setIdFrontFile(null); setIdBackFile(null);
                 setSelfieBlob(null); setLivenessPassed(false);
                 setScreenshotResult(null); setScreenshotSaved(false);
+                setQrCodeFile(null); setQrCodeSaved(false);
               }}>
                 <RefreshCw className="h-3.5 w-3.5" /> Re-submit
               </Button>
