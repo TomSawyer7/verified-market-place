@@ -262,10 +262,36 @@ const AdminDashboard = () => {
     fetchData();
   };
 
+  // Step 1 pending: has screenshot + QR but philsys_status still pending
+  const pendingStep1 = verifications.filter(v =>
+    v.screenshot_url && v.qr_code_url && v.philsys_status === 'pending' && !v.id_front_url
+  );
+
   const pendingVerifications = verifications.filter(v =>
     (v.id_front_url && v.id_last_name && v.selfie_url) &&
-    (v.philsys_status === 'pending' || v.biometric_status === 'pending')
+    (v.philsys_status === 'verified' && v.biometric_status === 'pending')
   );
+
+  const handleApproveStep1 = async (verificationId: string, userId: string) => {
+    await supabase.from('verifications').update({ philsys_status: 'verified' as any }).eq('id', verificationId);
+
+    if (user) {
+      await supabase.from('admin_logs').insert({
+        admin_id: user.id, user_id: userId,
+        action: 'step1_approved',
+        reason: 'Admin approved Step 1 (screenshot + QR code)',
+      });
+      await supabase.from('notifications').insert({
+        user_id: userId, type: 'verification',
+        title: 'Step 1 Approved',
+        body: 'Your screenshot and QR code have been approved! You can now proceed to Step 2.',
+        link: '/verification',
+      });
+    }
+
+    toast.success('Step 1 approved');
+    fetchData();
+  };
 
   const pendingReports = reports.filter(r => r.status === 'pending');
 
