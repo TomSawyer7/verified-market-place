@@ -47,47 +47,80 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [loading, setLoading] = useState(true);
 
   const fetchProfile = useCallback(async (userId: string) => {
-    const { data } = await supabase.from('profiles').select('*').eq('id', userId).single();
-    if (data) setProfile(data as Profile);
+    const { data, error } = await supabase.from('profiles').select('*').eq('id', userId).single();
+    if (error) {
+      console.error('Failed to load profile', error);
+      setProfile(null);
+      return;
+    }
+    setProfile(data as Profile);
   }, []);
 
   const fetchRole = useCallback(async (userId: string) => {
-    const { data } = await supabase.from('user_roles').select('role').eq('user_id', userId);
-    if (data) setIsAdmin(data.some(r => r.role === 'admin'));
+    const { data, error } = await supabase.from('user_roles').select('role').eq('user_id', userId);
+    if (error) {
+      console.error('Failed to load roles', error);
+      setIsAdmin(false);
+      return;
+    }
+    setIsAdmin((data || []).some(r => r.role === 'admin'));
   }, []);
+
+  const syncUserState = useCallback(async (nextUser: User | null) => {
+    if (!nextUser) {
+      setProfile(null);
+      setIsAdmin(false);
+      return;
+    }
+
+    await Promise.all([
+      fetchProfile(nextUser.id),
+      fetchRole(nextUser.id),
+    ]);
+  }, [fetchProfile, fetchRole]);
 
   const refreshProfile = useCallback(async () => {
     if (user) {
-      await fetchProfile(user.id);
+      await Promise.all([
+        fetchProfile(user.id),
+        fetchRole(user.id),
+      ]);
     }
-  }, [user, fetchProfile]);
+  }, [user, fetchProfile, fetchRole]);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
       setUser(session?.user ?? null);
-      if (session?.user) {
-        fetchProfile(session.user.id);
-        fetchRole(session.user.id);
-      }
-      setLoading(false);
+      syncUserState(session?.user ?? null).finally(() => setLoading(false));
     });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
       setSession(session);
       setUser(session?.user ?? null);
-      if (session?.user) {
-        await fetchProfile(session.user.id);
-        await fetchRole(session.user.id);
-      } else {
-        setProfile(null);
-        setIsAdmin(false);
-      }
+      await syncUserState(session?.user ?? null);
       setLoading(false);
     });
 
-    return () => subscription.unsubscribe();
-  }, [fetchProfile, fetchRole]);
+    const handleWindowFocus = () => {
+      supabase.auth.getSession().then(({ data: { session } }) => {
+        setSession(session);
+        setUser(session?.user ?? null);
+        if (session?.user) {
+          void syncUserState(session.user);
+        }
+      });
+    };
+
+    window.addEventListener('focus', handleWindowFocus);
+    document.addEventListener('visibilitychange', handleWindowFocus);
+
+    return () => {
+      subscription.unsubscribe();
+      window.removeEventListener('focus', handleWindowFocus);
+      document.removeEventListener('visibilitychange', handleWindowFocus);
+    };
+  }, [syncUserState]);
 
   const signUp = async (email: string, password: string, metadata: { first_name: string; last_name: string }) => {
     const { error } = await supabase.auth.signUp({
