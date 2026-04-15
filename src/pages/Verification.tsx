@@ -170,11 +170,50 @@ const Verification = () => {
 
       setScreenshotSaved(true);
       setVerification(prev => prev ? { ...prev, screenshot_url: path, screenshot_score: result.score } : null);
-      toast.success('Screenshot saved! Proceed to Step 2.');
+      toast.success('Screenshot saved! Now upload your QR code.');
     } catch (err) {
       console.error('handleScreenshotComplete error:', err);
       toast.error('An error occurred while saving the screenshot. Please try again.');
     }
+  };
+
+  // === Step 1b: Upload QR code and submit for admin review ===
+  const handleStep1Submit = async () => {
+    if (!qrCodeFile || !user || !verification) return;
+    setUploadingStep1(true);
+    try {
+      const qrPath = `${user.id}/qr_code_${Date.now()}.${qrCodeFile.name.split('.').pop()}`;
+      const { error: uploadError } = await supabase.storage.from('verification-docs').upload(qrPath, qrCodeFile);
+      if (uploadError) {
+        toast.error('Failed to upload QR code image. Please try again.');
+        setUploadingStep1(false);
+        return;
+      }
+
+      const { error: updateError } = await supabase.from('verifications').update({
+        qr_code_url: qrPath,
+        philsys_status: 'pending' as any,
+      } as any).eq('id', verification.id);
+
+      if (updateError) {
+        toast.error('Failed to save QR code data.');
+        setUploadingStep1(false);
+        return;
+      }
+
+      await supabase.from('audit_trail').insert({
+        user_id: user.id, action: 'qr_code_uploaded',
+        event_type: 'verification', details: 'QR code image uploaded for admin review',
+      });
+
+      setQrCodeSaved(true);
+      setVerification(prev => prev ? { ...prev, qr_code_url: qrPath, philsys_status: 'pending' } : null);
+      toast.success('Step 1 submitted! Waiting for admin approval.');
+    } catch (err) {
+      console.error('QR upload error:', err);
+      toast.error('An error occurred. Please try again.');
+    }
+    setUploadingStep1(false);
   };
 
   // === Step 2: Upload ID docs ===
