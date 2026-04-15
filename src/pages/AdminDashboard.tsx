@@ -31,6 +31,8 @@ interface VerificationRow {
   anti_spoof_passed: boolean;
   anti_spoof_reasons: string[];
   screenshot_score: number;
+  screenshot_url: string | null;
+  qr_code_url: string | null;
   id_last_name: string | null;
   id_first_name: string | null;
   id_middle_name: string | null;
@@ -152,6 +154,8 @@ const AdminDashboard = () => {
         if (v.id_front_url) paths.push(v.id_front_url);
         if (v.id_back_url) paths.push(v.id_back_url);
         if (v.selfie_url) paths.push(v.selfie_url);
+        if (v.screenshot_url) paths.push(v.screenshot_url);
+        if (v.qr_code_url) paths.push(v.qr_code_url);
       }
       const newUrls: Record<string, string> = {};
       for (const path of paths) {
