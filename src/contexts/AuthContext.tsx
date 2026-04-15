@@ -5,9 +5,22 @@ import type { User, Session } from '@supabase/supabase-js';
 interface Profile {
   id: string;
   first_name: string;
+<<<<<<< HEAD
   last_name: string;
   email: string;
   status: string;
+=======
+  middle_name?: string;
+  last_name: string;
+  email?: string;
+  status: string;
+  mobile_number?: string;
+  address?: string;
+  birthday?: string;
+  created_at?: string;
+  avatar_url?: string;
+  bio?: string;
+>>>>>>> e2adefbebe2b8cce350d7dbeccbd44d973e181ff
 }
 
 interface AuthContextType {
@@ -15,6 +28,12 @@ interface AuthContextType {
   session: Session | null;
   profile: Profile | null;
   loading: boolean;
+<<<<<<< HEAD
+=======
+  isAuthenticated: boolean;
+  isVerified: boolean;
+  isAdmin: boolean;
+>>>>>>> e2adefbebe2b8cce350d7dbeccbd44d973e181ff
   signUp: (email: string, password: string, metadata: { first_name: string; last_name: string }) => Promise<{ error: any }>;
   signIn: (email: string, password: string) => Promise<{ error: any }>;
   signOut: () => Promise<void>;
@@ -35,10 +54,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [loading, setLoading] = useState(true);
 
   const fetchProfile = useCallback(async (userId: string) => {
-    const { data } = await supabase.from('profiles').select('*').eq('id', userId).single();
-    if (data) setProfile(data as Profile);
+    const { data, error } = await supabase.from('profiles').select('*').eq('id', userId).single();
+    if (error) {
+      console.error('Failed to load profile', error);
+      setProfile(null);
+      return;
+    }
+    setProfile(data as Profile);
   }, []);
 
+<<<<<<< HEAD
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
@@ -60,6 +85,81 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     return () => subscription.unsubscribe();
   }, [fetchProfile]);
+=======
+  const fetchRole = useCallback(async (userId: string) => {
+    const { data, error } = await supabase.from('user_roles').select('role').eq('user_id', userId);
+    if (error) {
+      console.error('Failed to load roles', error);
+      setIsAdmin(false);
+      return;
+    }
+    setIsAdmin((data || []).some(r => r.role === 'admin'));
+  }, []);
+
+  const syncUserState = useCallback(async (nextUser: User | null) => {
+    if (!nextUser) {
+      setProfile(null);
+      setIsAdmin(false);
+      return;
+    }
+
+    await Promise.all([
+      fetchProfile(nextUser.id),
+      fetchRole(nextUser.id),
+    ]);
+  }, [fetchProfile, fetchRole]);
+
+  const refreshProfile = useCallback(async () => {
+    if (user) {
+      await Promise.all([
+        fetchProfile(user.id),
+        fetchRole(user.id),
+      ]);
+    }
+  }, [user, fetchProfile, fetchRole]);
+
+  useEffect(() => {
+    let isActive = true;
+
+    const applySession = (nextSession: Session | null, shouldStopLoading = true) => {
+      if (!isActive) return;
+
+      setSession(nextSession);
+      const nextUser = nextSession?.user ?? null;
+      setUser(nextUser);
+
+      void syncUserState(nextUser).finally(() => {
+        if (isActive && shouldStopLoading) {
+          setLoading(false);
+        }
+      });
+    };
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, nextSession) => {
+      applySession(nextSession);
+    });
+
+    void supabase.auth.getSession().then(({ data: { session } }) => {
+      applySession(session);
+    });
+
+    const handleWindowFocus = () => {
+      void supabase.auth.getSession().then(({ data: { session } }) => {
+        applySession(session, false);
+      });
+    };
+
+    window.addEventListener('focus', handleWindowFocus);
+    document.addEventListener('visibilitychange', handleWindowFocus);
+
+    return () => {
+      isActive = false;
+      subscription.unsubscribe();
+      window.removeEventListener('focus', handleWindowFocus);
+      document.removeEventListener('visibilitychange', handleWindowFocus);
+    };
+  }, [syncUserState]);
+>>>>>>> e2adefbebe2b8cce350d7dbeccbd44d973e181ff
 
   const signUp = async (email: string, password: string, metadata: { first_name: string; last_name: string }) => {
     const { error } = await supabase.auth.signUp({
@@ -82,8 +182,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setProfile(null);
   };
 
+  const isAuthenticated = !!user;
+  const isVerified = profile?.status === 'verified';
+
   return (
+<<<<<<< HEAD
     <AuthContext.Provider value={{ user, session, profile, loading, signUp, signIn, signOut }}>
+=======
+    <AuthContext.Provider value={{ user, session, profile, loading, isAuthenticated, isVerified, isAdmin, signUp, signIn, signOut, refreshProfile }}>
+>>>>>>> e2adefbebe2b8cce350d7dbeccbd44d973e181ff
       {children}
     </AuthContext.Provider>
   );

@@ -1,0 +1,173 @@
+// This sample demonstrates how to integrate the FaceTec Device SDK.
+//
+// This sample demonstrates:
+// - Initialization
+// - 3D Liveness Checks
+// - 3D Enrollment
+// - 3D:3D Re-Verification
+// - Photo ID Match
+// - Standalone ID Scanning
+// - Using FaceTec Device SDK Customization APIs to change the FaceTec UI
+//
+// Please use our technical support form to submit questions and issue reports:  https://dev.facetec.com/
+var SampleAppController = /** @class */ (function () {
+    function SampleAppController() {
+        var _this = this;
+        this.themeHelpers = new ThemeHelpers();
+        // Set up for loading the FaceTecSDK and initialize
+        this.initializeFaceTecSDK = function () {
+            // Set a the directory path for other FaceTec Browser SDK Resources.
+            FaceTecSDK.setResourceDirectory("../../core-sdk/FaceTecSDK.js/resources");
+            // Set the directory path for required FaceTec Browser SDK images.
+            FaceTecSDK.setImagesDirectory("../../core-sdk/FaceTec_images");
+            // Initialize FaceTec Browser SDK
+            // Required Parameters:
+            // - deviceKeyIdentifier:  The public Device Key Identifier associated with your Application
+            // - sessionRequestProcessor:  A SessionRequestProcessor class.  Please see the implementation of SessionRequestProcessor in this Sample App
+            // - callback:  A FaceTecInitializeCallback.
+            //      - The onSuccess callback is called with a FaceTecSDKInstance when successful.
+            //      - The onError callback is called when your SessionRequestProcessor cannot make a connection to your Server, or an invalid Device Key Identifier was used.
+            FaceTecSDK.initializeWithSessionRequest(Config.DeviceKeyIdentifier, new SessionRequestProcessor(), {
+                onSuccess: function (newFaceTecSdkInstance) {
+                    _this.faceTecSDKInstance = newFaceTecSdkInstance;
+                    _this.onFaceTecSDKInitializationSuccess();
+                },
+                onError: function (initializationError) {
+                    _this.onFaceTecSDKInitializationFailure(initializationError);
+                }
+            });
+        };
+        // Finish setup after initialization success
+        this.onFaceTecSDKInitializationSuccess = function () {
+            SampleAppUtilities.setupAndFadeInMainUIOnInitializationSuccess();
+            // Set your FaceTec Device SDK Customizations.
+            _this.themeHelpers.setAppTheme(_this.themeHelpers.getCurrentTheme());
+            // Set the sound files that are to be used for Vocal Guidance.
+            SampleAppUtilities.setVocalGuidanceSoundFiles();
+            // Set the strings to be used for group names, field names, and placeholder texts for the FaceTec ID Scan User OCR Confirmation Screen.
+            SampleAppUtilities.setOCRLocalization();
+            DeveloperStatusMessages.logAndDisplayMessage("Initialized Successfully.");
+        };
+        // Handle initialization unsuccess
+        this.onFaceTecSDKInitializationFailure = function (initializationError) {
+            SampleAppUtilities.fadeInMainUIContainer();
+            DeveloperStatusMessages.logInitializationErrorResult(initializationError);
+        };
+        // Initiate a 3D Liveness Check.
+        this.onLivenessCheckPressed = function () {
+            SampleAppUtilities.fadeOutMainUIAndPrepareForSession();
+            SampleAppController.demonstrationExternalDatabaseRefID = "";
+            _this.faceTecSDKInstance.start3DLiveness(new SessionRequestProcessor());
+        };
+        // Initiate a 3D Liveness Check, then storing the 3D FaceMap in the Database, also known as "Enrollment".  A random enrollmentIdentifier is generated each time to guarantee uniqueness.
+        this.onEnrollUserPressed = function () {
+            SampleAppUtilities.fadeOutMainUIAndPrepareForSession();
+            SampleAppController.demonstrationExternalDatabaseRefID = _this.generateExternalDatabaseRefID();
+            _this.faceTecSDKInstance.start3DLiveness(new SessionRequestProcessor());
+        };
+        // Perform 3D to 3D Verification against the Enrollment previously performed.
+        this.onVerifyUserPressed = function () {
+            // For demonstration purposes, verify that we have an enrollmentIdentifier to Verify against.
+            if (SampleAppController.demonstrationExternalDatabaseRefID.length === 0) {
+                DeveloperStatusMessages.logAndDisplayMessage("Please enroll first before trying verification.");
+            }
+            else {
+                SampleAppUtilities.fadeOutMainUIAndPrepareForSession();
+                _this.faceTecSDKInstance.start3DLivenessThen3DFaceMatch(new SessionRequestProcessor());
+            }
+        };
+        // Perform a 3D Liveness Check, then an ID Scan, then Match the 3D FaceMap to the ID Scan.
+        this.onPhotoIDMatchPressed = function () {
+            SampleAppUtilities.fadeOutMainUIAndPrepareForSession();
+            SampleAppController.demonstrationExternalDatabaseRefID = _this.generateExternalDatabaseRefID();
+            _this.faceTecSDKInstance.start3DLivenessThen3D2DPhotoIDMatch(new SessionRequestProcessor());
+        };
+        // Perform Photo ID Scan, generating a username each time to guarantee uniqueness.
+        this.onPhotoIDScanPressed = function () {
+            SampleAppUtilities.fadeOutMainUIAndPrepareForSession();
+            SampleAppController.demonstrationExternalDatabaseRefID = _this.generateExternalDatabaseRefID();
+            _this.faceTecSDKInstance.startIDScanOnly(new SessionRequestProcessor());
+        };
+        // Initiate an Official ID Photo session by displaying the Official ID Photo instructions screen
+        this.onOfficialIDPhotoPressed = function () {
+            alert("This is a Paid Extra-Feature, please contact FaceTec before use.");
+            // Uncomment this code to use Official ID Photo
+            // SampleAppUtilities.fadeOutMainUIControlsAndFadeInOfficialIDInstructionsUI();
+        };
+        // Continue an Official ID Photo session once continue button is pressed from the Official ID Photo instructions screen
+        this.onContinueOfficialIDPhotoPressed = function () {
+            SampleAppUtilities.fadeOutMainUIAndPrepareForSession();
+            SampleAppController.demonstrationExternalDatabaseRefID = _this.generateExternalDatabaseRefID();
+            _this.faceTecSDKInstance.startSecureOfficialIDPhotoCapture(new SessionRequestProcessor());
+        };
+        // Upon cancellation of Official ID Photo sesison, clear the latest Session data and show the main UI
+        this.onCancelOfficialIDPhotoPressed = function () {
+            SampleAppController.demonstrationExternalDatabaseRefID = "";
+            SampleAppController.latestOfficialIDPhoto = "";
+            SampleAppUtilities.fadeOutOfficialIDPhotoUIAndFadeInMainUIControls();
+        };
+        // Handle download of Official ID Photo
+        this.onDownloadOfficialIDPhotoPressed = function () {
+            // Generate a formatted date string (offset by the users time zone) for use in building a unique filename suffix (format YYYY-MM-DD).
+            var dateTimeNow = new Date();
+            var dateTimeNowArray = new Date(dateTimeNow.getTime() - (dateTimeNow.getTimezoneOffset() * 60 * 1000)).toISOString().split("T");
+            var formattedDate = "".concat(dateTimeNowArray[0]);
+            var downloadLink = document.createElement("a");
+            downloadLink.href = "data:image/jpeg;base64, ".concat(SampleAppController.latestOfficialIDPhoto);
+            downloadLink.download = "FaceTec_Generated_Official_ID_Photo_".concat(formattedDate, "_").concat(crypto.randomUUID().substring(0, 8), ".jpg");
+            downloadLink.click();
+        };
+        // Create a new externalDatabaseRefID
+        this.generateExternalDatabaseRefID = function () {
+            return "browser_sample_app_" + SampleAppUtilities.generateUUId();
+        };
+        SampleAppUtilities.formatUIForDevice();
+        this.initializeFaceTecSDK();
+    }
+    // Set a new customization for FaceTec Browser SDK.
+    SampleAppController.prototype.onDesignShowcasePressed = function () {
+        this.themeHelpers.showNewTheme();
+    };
+    // Set vocal guidance mode
+    SampleAppController.prototype.onVocalGuidanceSettingsButtonPressed = function () {
+        SampleAppUtilities.setVocalGuidanceMode();
+    };
+    // For Official ID Photo Sessions, the FaceTec Sample App demonstrates getting the generated Official ID Photo from the Server's response,
+    // storing it here to display the result on a sample screen once the FaceTec SDK exits.
+    SampleAppController.latestOfficialIDPhoto = "";
+    // IMPORTANT NOTE:  In Your Production Application, DO NOT set or handle externalDatabaseRefID in your client-side code.
+    //
+    // The externalDatabaseRefID is used in the following calls for the following reasons:
+    // - 3D Enrollment - Your internal identifier for the 3D Enrollment.
+    // - 3D:3D Re-Verification - Your internal identifier for the 3D Enrollment that will be used to perform 3D:3D Matching against for the 3D FaceScan that will be created.
+    // - Photo ID Match - Your internal identifier for the 3D Enrollment that will be used to to perform 3D:2D Matching of the ID Images to the 3D Enrollment.
+    //
+    // The FaceTec Sample App demonstrates generating the externalDatabaseRefID on the client-side *FOR DEMONSTRATION PURPOSES ONLY*.
+    // In Production, you need to generate and manage the externalDatabaseRefIDs in your server-side code.
+    // * If you expose externalDatabaseRefIDs in your front-end code, you will allow for attacks where externalDatabaseRefIDs can be
+    // exposed by to attackers by hooking into device code or inspecting network transactions.
+    SampleAppController.demonstrationExternalDatabaseRefID = "";
+    // Handle the FaceTec Session result returned on FaceTec SDK exit
+    SampleAppController.demonstrateHandlingFaceTecExit = function (FaceTecSessionResult) {
+        DeveloperStatusMessages.logSessionStatusOnFaceTecExit(FaceTecSessionResult.status);
+        if (FaceTecSessionResult.status === FaceTecSDK.FaceTecSessionStatus.SessionCompleted) {
+            if (SampleAppController.latestOfficialIDPhoto.length > 0) {
+                // Case: Official ID Photo Session completed successfully
+                // Show the Official ID Photo results screen if the session is an Official ID Photo session
+                SampleAppUtilities.fadeInOfficialIDPhotoResultsUI();
+                return;
+            }
+        }
+        else {
+            SampleAppController.demonstrationExternalDatabaseRefID = "";
+            SampleAppController.latestOfficialIDPhoto = "";
+            SampleAppUtilities.hideOfficialIDPhotoUIAndShowMainUIControlsDueToUnsuccessfulSession();
+        }
+        SampleAppUtilities.showMainUI();
+    };
+    return SampleAppController;
+}());
+SampleAppController = SampleAppController;
+window.onload = function () {
+    window.sampleAppController = new SampleAppController();
+};

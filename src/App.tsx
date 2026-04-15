@@ -25,6 +25,7 @@ import SellerProfile from "./pages/SellerProfile";
 const queryClient = new QueryClient();
 
 const App = () => {
+<<<<<<< HEAD
   // 3. ITO ANG PANGLALAMAN KUNG CONNECTED O HINDI
   useEffect(() => {
     const checkConnection = async () => {
@@ -37,6 +38,38 @@ const App = () => {
     };
     checkConnection();
   }, []);
+=======
+  return (
+    <QueryClientProvider client={queryClient}>
+      <TooltipProvider>
+        <Toaster />
+        <Sonner />
+        <AuthProvider>
+          <BrowserRouter>
+            <Navbar />
+            <Routes>
+              <Route path="/" element={<Index />} />
+              <Route path="/login" element={<Login />} />
+              <Route path="/register" element={<Register />} />
+              <Route path="/forgot-password" element={<ForgotPassword />} />
+              <Route path="/reset-password" element={<ResetPassword />} />
+              <Route path="/marketplace" element={<Marketplace />} />
+              <Route path="/product/:id" element={<ProductDetail />} />
+              <Route path="/create-listing" element={<CreateListing />} />
+              <Route path="/seller/:id" element={<SellerProfile />} />
+              <Route path="/verification" element={<Verification />} />
+              <Route path="/profile" element={<Profile />} />
+              <Route path="/messages" element={<Messages />} />
+              <Route path="/admin" element={<AdminDashboard />} />
+              <Route path="*" element={<NotFound />} />
+            </Routes>
+          </BrowserRouter>
+        </AuthProvider>
+      </TooltipProvider>
+    </QueryClientProvider>
+  );
+};
+>>>>>>> e2adefbebe2b8cce350d7dbeccbd44d973e181ff
 
   return (
     <QueryClientProvider client={queryClient}>

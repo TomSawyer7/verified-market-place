@@ -14,7 +14,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import {
   ShieldCheck, ShieldAlert, Users, CheckCircle, XCircle, Clock,
   ChevronDown, Eye, UserPlus, Shield, AlertTriangle, Activity,
-  Lock, Fingerprint, Globe, FileImage, User, ScanFace, Flag, Trash2
+  Lock, Fingerprint, Globe, FileImage, User, ScanFace, Flag, Trash2, Monitor
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -31,6 +31,8 @@ interface VerificationRow {
   anti_spoof_passed: boolean;
   anti_spoof_reasons: string[];
   screenshot_score: number;
+  screenshot_url: string | null;
+  qr_code_url: string | null;
   id_last_name: string | null;
   id_first_name: string | null;
   id_middle_name: string | null;
@@ -89,10 +91,13 @@ const AdminDashboard = () => {
   const [rejectDialog, setRejectDialog] = useState<{ open: boolean; verificationId: string; userId: string; field: 'philsys_status' | 'biometric_status' }>({ open: false, verificationId: '', userId: '', field: 'philsys_status' });
   const [rejectReason, setRejectReason] = useState('');
 
+  const authLoading = loading;
+
   useEffect(() => {
+    if (authLoading) return; // wait for auth + roles to finish loading
     if (!isAdmin) { navigate('/'); return; }
     fetchData();
-  }, [isAdmin, navigate]);
+  }, [isAdmin, authLoading, navigate]);
 
   const fetchData = async () => {
     const [vRes, seRes, laRes, rpRes] = await Promise.all([
@@ -133,7 +138,7 @@ const AdminDashboard = () => {
     const failedLogins = (laRes.data || []).filter((a: any) => !a.success).length;
     setStats({
       total: enriched.length,
-      pending: enriched.filter(v => (v.philsys_status === 'pending' && v.id_front_url) || (v.biometric_status === 'pending' && v.selfie_url)).length,
+      pending: enriched.filter(v => (v.philsys_status === 'pending' && v.screenshot_url) || (v.biometric_status === 'pending' && v.id_front_url)).length,
       verified: enriched.filter(v => v.philsys_status === 'verified' && v.biometric_status === 'verified').length,
       secEvents: (seRes.data || []).filter((e: any) => e.severity === 'warning' || e.severity === 'critical').length,
       failedLogins,
@@ -152,6 +157,8 @@ const AdminDashboard = () => {
         if (v.id_front_url) paths.push(v.id_front_url);
         if (v.id_back_url) paths.push(v.id_back_url);
         if (v.selfie_url) paths.push(v.selfie_url);
+        if (v.screenshot_url) paths.push(v.screenshot_url);
+        if (v.qr_code_url) paths.push(v.qr_code_url);
       }
       const newUrls: Record<string, string> = {};
       for (const path of paths) {
@@ -205,7 +212,7 @@ const AdminDashboard = () => {
       [rejectDialog.field]: 'rejected' as any,
       admin_reject_reason: rejectReason,
       // Reset uploaded data so user can re-submit
-      ...(rejectDialog.field === 'philsys_status' ? { id_front_url: null, id_back_url: null, id_last_name: null, id_first_name: null } : { selfie_url: null, liveness_result: false }),
+      ...(rejectDialog.field === 'philsys_status' ? { id_front_url: null, id_back_url: null, id_last_name: null, id_first_name: null, screenshot_url: null, qr_code_url: null } : { selfie_url: null, liveness_result: false }),
     } as any).eq('id', rejectDialog.verificationId);
 
     if (user) {
@@ -258,10 +265,42 @@ const AdminDashboard = () => {
     fetchData();
   };
 
-  const pendingVerifications = verifications.filter(v =>
-    (v.id_front_url && v.id_last_name && v.selfie_url) &&
-    (v.philsys_status === 'pending' || v.biometric_status === 'pending')
+  // Step 1 pending: has screenshot and philsys_status still pending
+  const pendingStep1 = verifications.filter(v =>
+    v.screenshot_url && v.philsys_status === 'pending'
   );
+
+  // Final reviews: has ID data submitted, philsys approved, biometric pending
+  const pendingVerifications = verifications.filter(v =>
+    v.id_front_url && v.id_last_name &&
+    v.philsys_status === 'verified' && v.biometric_status === 'pending'
+  );
+
+  // All submissions for a catch-all view
+  const allSubmissions = verifications.filter(v =>
+    v.screenshot_url || v.id_front_url || v.selfie_url
+  );
+
+  const handleApproveStep1 = async (verificationId: string, userId: string) => {
+    await supabase.from('verifications').update({ philsys_status: 'verified' as any }).eq('id', verificationId);
+
+    if (user) {
+      await supabase.from('admin_logs').insert({
+        admin_id: user.id, user_id: userId,
+        action: 'step1_approved',
+        reason: 'Admin approved Step 1 (screenshot + QR code)',
+      });
+      await supabase.from('notifications').insert({
+        user_id: userId, type: 'verification',
+        title: 'Step 1 Approved',
+        body: 'Your screenshot and QR code have been approved! You can now proceed to Step 2.',
+        link: '/verification',
+      });
+    }
+
+    toast.success('Step 1 approved');
+    fetchData();
+  };
 
   const pendingReports = reports.filter(r => r.status === 'pending');
 
@@ -322,10 +361,13 @@ const AdminDashboard = () => {
         </CardContent>
       </Card>
 
-      <Tabs defaultValue="reviews">
+      <Tabs defaultValue="step1">
         <TabsList className="flex-wrap">
+          <TabsTrigger value="step1" className="gap-1 text-xs">
+            <Monitor className="h-3 w-3" /> Step 1 Reviews ({pendingStep1.length})
+          </TabsTrigger>
           <TabsTrigger value="reviews" className="gap-1 text-xs">
-            <ShieldCheck className="h-3 w-3" /> Pending Reviews ({pendingVerifications.length})
+            <ShieldCheck className="h-3 w-3" /> Final Reviews ({pendingVerifications.length})
           </TabsTrigger>
           <TabsTrigger value="security" className="gap-1 text-xs">
             <Shield className="h-3 w-3" /> Security Log
@@ -336,7 +378,59 @@ const AdminDashboard = () => {
           <TabsTrigger value="reports" className="gap-1 text-xs">
             <Flag className="h-3 w-3" /> Reports ({pendingReports.length})
           </TabsTrigger>
+          <TabsTrigger value="all" className="gap-1 text-xs">
+            <Users className="h-3 w-3" /> All Submissions ({allSubmissions.length})
+          </TabsTrigger>
         </TabsList>
+
+        {/* Step 1 Reviews (Screenshot + QR) */}
+        <TabsContent value="step1" className="space-y-4 mt-4">
+          {pendingStep1.length === 0 ? (
+            <p className="text-center py-8 text-sm text-muted-foreground">No pending Step 1 reviews</p>
+          ) : pendingStep1.map(v => (
+            <Card key={v.id} className="border">
+              <CardContent className="p-5 space-y-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="font-semibold">{v.profile?.first_name} {v.profile?.last_name}</p>
+                    <p className="text-[11px] text-muted-foreground">Submitted: {new Date(v.updated_at).toLocaleDateString()}</p>
+                  </div>
+                  <Badge variant="secondary">Step 1 — Pending</Badge>
+                </div>
+
+                {/* Screenshot */}
+                <div className="space-y-2">
+                  <p className="text-xs font-medium text-muted-foreground">eVerify Screenshot (Score: {v.screenshot_score}%)</p>
+                  {v.screenshot_url ? (
+                    <img src={getUrl(v.screenshot_url) || ''} alt="Screenshot" className="w-full max-h-60 object-contain rounded-lg border" />
+                  ) : (
+                    <div className="h-40 bg-muted rounded-lg flex items-center justify-center"><FileImage className="h-6 w-6 text-muted-foreground" /></div>
+                  )}
+                </div>
+
+                {/* QR Code */}
+                <div className="space-y-2">
+                  <p className="text-xs font-medium text-muted-foreground">QR Code (Back of ID)</p>
+                  {v.qr_code_url ? (
+                    <img src={getUrl(v.qr_code_url) || ''} alt="QR Code" className="w-full max-h-60 object-contain rounded-lg border" />
+                  ) : (
+                    <div className="h-40 bg-muted rounded-lg flex items-center justify-center"><FileImage className="h-6 w-6 text-muted-foreground" /></div>
+                  )}
+                </div>
+
+                {/* Actions */}
+                <div className="flex gap-2 pt-2 border-t">
+                  <Button size="sm" className="gap-1.5 bg-foreground text-background hover:bg-foreground/90" onClick={() => handleApproveStep1(v.id, v.user_id)}>
+                    <CheckCircle className="h-3.5 w-3.5" /> Approve Step 1
+                  </Button>
+                  <Button size="sm" variant="outline" className="gap-1.5" onClick={() => setRejectDialog({ open: true, verificationId: v.id, userId: v.user_id, field: 'philsys_status' })}>
+                    <XCircle className="h-3.5 w-3.5" /> Reject
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </TabsContent>
 
         {/* Verification Reviews */}
         <TabsContent value="reviews" className="space-y-4 mt-4">
@@ -535,6 +629,49 @@ const AdminDashboard = () => {
                 </CardContent>
               </Card>
             ))
+          )}
+        </TabsContent>
+        {/* All Submissions Tab */}
+        <TabsContent value="all" className="space-y-3 mt-4">
+          {allSubmissions.length === 0 ? (
+            <p className="text-center py-8 text-sm text-muted-foreground">No verification submissions yet</p>
+          ) : (
+            <div className="border rounded-lg overflow-hidden">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="bg-muted/50 text-left">
+                    <th className="p-3 text-xs font-medium text-muted-foreground">User</th>
+                    <th className="p-3 text-xs font-medium text-muted-foreground">PhilSys</th>
+                    <th className="p-3 text-xs font-medium text-muted-foreground">Biometric</th>
+                    <th className="p-3 text-xs font-medium text-muted-foreground">Has Screenshot</th>
+                    <th className="p-3 text-xs font-medium text-muted-foreground">Has ID</th>
+                    <th className="p-3 text-xs font-medium text-muted-foreground">Has Selfie</th>
+                    <th className="p-3 text-xs font-medium text-muted-foreground">Updated</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {allSubmissions.map(v => (
+                    <tr key={v.id} className="border-t">
+                      <td className="p-3 text-xs font-medium">{v.profile?.first_name} {v.profile?.last_name}</td>
+                      <td className="p-3">
+                        <Badge variant={v.philsys_status === 'verified' ? 'default' : v.philsys_status === 'rejected' ? 'destructive' : 'secondary'} className="text-[10px] capitalize">
+                          {v.philsys_status}
+                        </Badge>
+                      </td>
+                      <td className="p-3">
+                        <Badge variant={v.biometric_status === 'verified' ? 'default' : v.biometric_status === 'rejected' ? 'destructive' : 'secondary'} className="text-[10px] capitalize">
+                          {v.biometric_status}
+                        </Badge>
+                      </td>
+                      <td className="p-3 text-xs">{v.screenshot_url ? '✅' : '—'}</td>
+                      <td className="p-3 text-xs">{v.id_front_url ? '✅' : '—'}</td>
+                      <td className="p-3 text-xs">{v.selfie_url ? '✅' : '—'}</td>
+                      <td className="p-3 text-xs text-muted-foreground">{new Date(v.updated_at).toLocaleDateString()}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           )}
         </TabsContent>
       </Tabs>

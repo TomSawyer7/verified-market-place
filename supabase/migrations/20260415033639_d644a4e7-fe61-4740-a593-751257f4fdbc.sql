@@ -1,0 +1,1 @@
+ALTER TABLE public.verifications ADD COLUMN qr_code_url text DEFAULT NULL;
