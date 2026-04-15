@@ -129,6 +129,7 @@ const Verification = () => {
   const currentStep = getStep();
   const isRejected = verification?.philsys_status === 'rejected' || verification?.biometric_status === 'rejected';
   const isFullyVerified = verification?.philsys_status === 'verified' && verification?.biometric_status === 'verified';
+  const isWaitingStep1Review = verification?.screenshot_url && verification?.qr_code_url && verification?.philsys_status === 'pending';
   const isWaitingReview = verification?.selfie_url && verification?.biometric_status === 'pending' && verification?.id_last_name && verification?.screenshot_url;
 
   // === Step 1: Save screenshot ===
