@@ -38,6 +38,7 @@ type VerificationData = {
   admin_reject_reason: string | null;
   screenshot_url: string | null;
   screenshot_score: number | null;
+  qr_code_url: string | null;
 };
 
 const PHASES = [
