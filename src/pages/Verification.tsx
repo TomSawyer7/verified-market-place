@@ -547,8 +547,20 @@ const Verification = () => {
                           <CheckCircle className="h-5 w-5" />
                           <span className="font-medium">Personal details saved</span>
                         </div>
+                      ) : ocrScanning ? (
+                        <div className="flex items-center gap-3 p-6 justify-center">
+                          <Loader2 className="h-5 w-5 animate-spin text-primary" />
+                          <span className="text-sm font-medium">Scanning ID with AI... Extracting details automatically</span>
+                        </div>
                       ) : (
                         <div className="space-y-4">
+                          {ocrFilled && (
+                            <div className="flex items-center gap-2 text-primary bg-primary/10 p-3 rounded-lg text-sm">
+                              <CheckCircle className="h-4 w-4" />
+                              <span className="font-medium">Auto-filled by OCR</span>
+                              <span className="text-muted-foreground">— Please review and correct if needed</span>
+                            </div>
+                          )}
                           <div className="rounded-lg border border-border bg-muted/50 p-3">
                             <p className="text-xs text-muted-foreground">
                               ⚠️ Fill in the following details exactly as they appear on your ID. If the information doesn't match, click "Retry" to re-upload your images.
