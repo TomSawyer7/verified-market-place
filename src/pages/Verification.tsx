@@ -54,9 +54,12 @@ const Verification = () => {
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
 
-  // Step 1: Screenshot
+  // Step 1: Screenshot + QR Code
   const [screenshotResult, setScreenshotResult] = useState<ScreenshotVerificationResult | null>(null);
   const [screenshotSaved, setScreenshotSaved] = useState(false);
+  const [qrCodeFile, setQrCodeFile] = useState<File | null>(null);
+  const [qrCodeSaved, setQrCodeSaved] = useState(false);
+  const [uploadingStep1, setUploadingStep1] = useState(false);
 
   // Step 2: ID docs + form
   const [idFrontFile, setIdFrontFile] = useState<File | null>(null);
@@ -87,7 +90,7 @@ const Verification = () => {
       if (!user) return;
       const { data } = await supabase
         .from('verifications')
-        .select('id, philsys_status, biometric_status, id_front_url, id_back_url, selfie_url, liveness_result, face_match_score, id_last_name, id_first_name, id_middle_name, id_date_of_birth, id_sex, id_blood_type, id_marital_status, id_place_of_birth, admin_reject_reason, screenshot_url, screenshot_score')
+        .select('id, philsys_status, biometric_status, id_front_url, id_back_url, selfie_url, liveness_result, face_match_score, id_last_name, id_first_name, id_middle_name, id_date_of_birth, id_sex, id_blood_type, id_marital_status, id_place_of_birth, admin_reject_reason, screenshot_url, screenshot_score, qr_code_url')
         .eq('user_id', user.id)
         .single();
       if (data) {
@@ -103,6 +106,9 @@ const Verification = () => {
         if (data.screenshot_url) {
           setScreenshotSaved(true);
         }
+        if (data.qr_code_url) {
+          setQrCodeSaved(true);
+        }
       }
       setLoading(false);
     };
@@ -113,7 +119,8 @@ const Verification = () => {
   const getStep = (): number => {
     if (!verification) return 0;
     if (verification.philsys_status === 'verified' && verification.biometric_status === 'verified') return 4; // done
-    if (!verification.screenshot_url && !screenshotSaved) return 0;
+    // Step 1: Need both screenshot + QR uploaded AND admin approved (philsys_status === 'verified')
+    if (!verification.screenshot_url || !verification.qr_code_url || verification.philsys_status !== 'verified') return 0;
     if (!verification.id_front_url || !verification.id_back_url || !verification.id_last_name || !verification.id_first_name) return 1;
     if (!verification.selfie_url) return 2;
     return 3;
