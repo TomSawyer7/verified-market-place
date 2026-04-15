@@ -209,7 +209,7 @@ const AdminDashboard = () => {
       [rejectDialog.field]: 'rejected' as any,
       admin_reject_reason: rejectReason,
       // Reset uploaded data so user can re-submit
-      ...(rejectDialog.field === 'philsys_status' ? { id_front_url: null, id_back_url: null, id_last_name: null, id_first_name: null } : { selfie_url: null, liveness_result: false }),
+      ...(rejectDialog.field === 'philsys_status' ? { id_front_url: null, id_back_url: null, id_last_name: null, id_first_name: null, screenshot_url: null, qr_code_url: null } : { selfie_url: null, liveness_result: false }),
     } as any).eq('id', rejectDialog.verificationId);
 
     if (user) {
