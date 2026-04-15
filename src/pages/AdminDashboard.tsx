@@ -91,7 +91,7 @@ const AdminDashboard = () => {
   const [rejectDialog, setRejectDialog] = useState<{ open: boolean; verificationId: string; userId: string; field: 'philsys_status' | 'biometric_status' }>({ open: false, verificationId: '', userId: '', field: 'philsys_status' });
   const [rejectReason, setRejectReason] = useState('');
 
-  const { loading: authLoading } = useAuth();
+  const authLoading = loading;
 
   useEffect(() => {
     if (authLoading) return; // wait for auth + roles to finish loading
@@ -265,14 +265,20 @@ const AdminDashboard = () => {
     fetchData();
   };
 
-  // Step 1 pending: has screenshot + QR but philsys_status still pending
+  // Step 1 pending: has screenshot and philsys_status still pending
   const pendingStep1 = verifications.filter(v =>
-    v.screenshot_url && v.qr_code_url && v.philsys_status === 'pending' && !v.id_front_url
+    v.screenshot_url && v.philsys_status === 'pending'
   );
 
+  // Final reviews: has ID data submitted, philsys approved, biometric pending
   const pendingVerifications = verifications.filter(v =>
-    (v.id_front_url && v.id_last_name && v.selfie_url) &&
-    (v.philsys_status === 'verified' && v.biometric_status === 'pending')
+    v.id_front_url && v.id_last_name &&
+    v.philsys_status === 'verified' && v.biometric_status === 'pending'
+  );
+
+  // All submissions for a catch-all view
+  const allSubmissions = verifications.filter(v =>
+    v.screenshot_url || v.id_front_url || v.selfie_url
   );
 
   const handleApproveStep1 = async (verificationId: string, userId: string) => {
