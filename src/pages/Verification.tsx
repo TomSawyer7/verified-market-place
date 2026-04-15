@@ -66,6 +66,8 @@ const Verification = () => {
     id_marital_status: '', id_place_of_birth: '',
   });
   const [savingForm, setSavingForm] = useState(false);
+  const [ocrScanning, setOcrScanning] = useState(false);
+  const [ocrFilled, setOcrFilled] = useState(false);
 
   // Step 3: Liveness (FaceTec)
   const [facetecStatus, setFacetecStatus] = useState<FaceTecStatus | null>(null);
@@ -183,7 +185,58 @@ const Verification = () => {
     if (!error) {
       toast.success('Documents uploaded!');
       setVerification(prev => prev ? { ...prev, id_front_url: frontPath, id_back_url: backPath, philsys_status: 'pending', biometric_status: 'pending', admin_reject_reason: null } : null);
+
+      // Trigger OCR on the front ID image
+      runOcrExtraction(idFrontFile);
     }
+  };
+
+  const runOcrExtraction = async (file: File) => {
+    setOcrScanning(true);
+    try {
+      const base64 = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result as string);
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
+
+      const { data, error } = await supabase.functions.invoke('ocr-id', {
+        body: { image_base64: base64 },
+      });
+
+      if (error || !data?.fields) {
+        console.error('OCR error:', error || data?.error);
+        toast.error('OCR scan could not extract data. Please fill in details manually.');
+        setOcrScanning(false);
+        return;
+      }
+
+      const f = data.fields;
+      setFormData(prev => ({
+        id_last_name: f.last_name || prev.id_last_name,
+        id_first_name: f.first_name || prev.id_first_name,
+        id_middle_name: f.middle_name || prev.id_middle_name,
+        id_date_of_birth: f.date_of_birth || prev.id_date_of_birth,
+        id_sex: f.sex || prev.id_sex,
+        id_blood_type: f.blood_type || prev.id_blood_type,
+        id_marital_status: f.marital_status || prev.id_marital_status,
+        id_place_of_birth: f.place_of_birth || prev.id_place_of_birth,
+      }));
+      setOcrFilled(true);
+      toast.success('ID details extracted automatically! Please review and correct if needed.');
+
+      if (user) {
+        await supabase.from('audit_trail').insert({
+          user_id: user.id, action: 'ocr_extraction_completed',
+          event_type: 'verification', details: `OCR extracted: ${f.first_name} ${f.last_name}`,
+        });
+      }
+    } catch (err) {
+      console.error('OCR extraction failed:', err);
+      toast.error('OCR scan failed. Please fill in details manually.');
+    }
+    setOcrScanning(false);
   };
 
   const handleSaveDetails = async () => {
@@ -494,8 +547,20 @@ const Verification = () => {
                           <CheckCircle className="h-5 w-5" />
                           <span className="font-medium">Personal details saved</span>
                         </div>
+                      ) : ocrScanning ? (
+                        <div className="flex items-center gap-3 p-6 justify-center">
+                          <Loader2 className="h-5 w-5 animate-spin text-primary" />
+                          <span className="text-sm font-medium">Scanning ID with AI... Extracting details automatically</span>
+                        </div>
                       ) : (
                         <div className="space-y-4">
+                          {ocrFilled && (
+                            <div className="flex items-center gap-2 text-primary bg-primary/10 p-3 rounded-lg text-sm">
+                              <CheckCircle className="h-4 w-4" />
+                              <span className="font-medium">Auto-filled by OCR</span>
+                              <span className="text-muted-foreground">— Please review and correct if needed</span>
+                            </div>
+                          )}
                           <div className="rounded-lg border border-border bg-muted/50 p-3">
                             <p className="text-xs text-muted-foreground">
                               ⚠️ Fill in the following details exactly as they appear on your ID. If the information doesn't match, click "Retry" to re-upload your images.
