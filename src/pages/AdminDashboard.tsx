@@ -352,10 +352,13 @@ const AdminDashboard = () => {
         </CardContent>
       </Card>
 
-      <Tabs defaultValue="reviews">
+      <Tabs defaultValue="step1">
         <TabsList className="flex-wrap">
+          <TabsTrigger value="step1" className="gap-1 text-xs">
+            <Monitor className="h-3 w-3" /> Step 1 Reviews ({pendingStep1.length})
+          </TabsTrigger>
           <TabsTrigger value="reviews" className="gap-1 text-xs">
-            <ShieldCheck className="h-3 w-3" /> Pending Reviews ({pendingVerifications.length})
+            <ShieldCheck className="h-3 w-3" /> Final Reviews ({pendingVerifications.length})
           </TabsTrigger>
           <TabsTrigger value="security" className="gap-1 text-xs">
             <Shield className="h-3 w-3" /> Security Log
@@ -367,6 +370,55 @@ const AdminDashboard = () => {
             <Flag className="h-3 w-3" /> Reports ({pendingReports.length})
           </TabsTrigger>
         </TabsList>
+
+        {/* Step 1 Reviews (Screenshot + QR) */}
+        <TabsContent value="step1" className="space-y-4 mt-4">
+          {pendingStep1.length === 0 ? (
+            <p className="text-center py-8 text-sm text-muted-foreground">No pending Step 1 reviews</p>
+          ) : pendingStep1.map(v => (
+            <Card key={v.id} className="border">
+              <CardContent className="p-5 space-y-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="font-semibold">{v.profile?.first_name} {v.profile?.last_name}</p>
+                    <p className="text-[11px] text-muted-foreground">Submitted: {new Date(v.updated_at).toLocaleDateString()}</p>
+                  </div>
+                  <Badge variant="secondary">Step 1 — Pending</Badge>
+                </div>
+
+                {/* Screenshot */}
+                <div className="space-y-2">
+                  <p className="text-xs font-medium text-muted-foreground">eVerify Screenshot (Score: {v.screenshot_score}%)</p>
+                  {v.screenshot_url ? (
+                    <img src={getUrl(v.screenshot_url) || ''} alt="Screenshot" className="w-full max-h-60 object-contain rounded-lg border" />
+                  ) : (
+                    <div className="h-40 bg-muted rounded-lg flex items-center justify-center"><FileImage className="h-6 w-6 text-muted-foreground" /></div>
+                  )}
+                </div>
+
+                {/* QR Code */}
+                <div className="space-y-2">
+                  <p className="text-xs font-medium text-muted-foreground">QR Code (Back of ID)</p>
+                  {v.qr_code_url ? (
+                    <img src={getUrl(v.qr_code_url) || ''} alt="QR Code" className="w-full max-h-60 object-contain rounded-lg border" />
+                  ) : (
+                    <div className="h-40 bg-muted rounded-lg flex items-center justify-center"><FileImage className="h-6 w-6 text-muted-foreground" /></div>
+                  )}
+                </div>
+
+                {/* Actions */}
+                <div className="flex gap-2 pt-2 border-t">
+                  <Button size="sm" className="gap-1.5 bg-foreground text-background hover:bg-foreground/90" onClick={() => handleApproveStep1(v.id, v.user_id)}>
+                    <CheckCircle className="h-3.5 w-3.5" /> Approve Step 1
+                  </Button>
+                  <Button size="sm" variant="outline" className="gap-1.5" onClick={() => setRejectDialog({ open: true, verificationId: v.id, userId: v.user_id, field: 'philsys_status' })}>
+                    <XCircle className="h-3.5 w-3.5" /> Reject
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </TabsContent>
 
         {/* Verification Reviews */}
         <TabsContent value="reviews" className="space-y-4 mt-4">
