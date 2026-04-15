@@ -378,6 +378,9 @@ const AdminDashboard = () => {
           <TabsTrigger value="reports" className="gap-1 text-xs">
             <Flag className="h-3 w-3" /> Reports ({pendingReports.length})
           </TabsTrigger>
+          <TabsTrigger value="all" className="gap-1 text-xs">
+            <Users className="h-3 w-3" /> All Submissions ({allSubmissions.length})
+          </TabsTrigger>
         </TabsList>
 
         {/* Step 1 Reviews (Screenshot + QR) */}
