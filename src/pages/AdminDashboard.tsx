@@ -631,6 +631,49 @@ const AdminDashboard = () => {
             ))
           )}
         </TabsContent>
+        {/* All Submissions Tab */}
+        <TabsContent value="all" className="space-y-3 mt-4">
+          {allSubmissions.length === 0 ? (
+            <p className="text-center py-8 text-sm text-muted-foreground">No verification submissions yet</p>
+          ) : (
+            <div className="border rounded-lg overflow-hidden">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="bg-muted/50 text-left">
+                    <th className="p-3 text-xs font-medium text-muted-foreground">User</th>
+                    <th className="p-3 text-xs font-medium text-muted-foreground">PhilSys</th>
+                    <th className="p-3 text-xs font-medium text-muted-foreground">Biometric</th>
+                    <th className="p-3 text-xs font-medium text-muted-foreground">Has Screenshot</th>
+                    <th className="p-3 text-xs font-medium text-muted-foreground">Has ID</th>
+                    <th className="p-3 text-xs font-medium text-muted-foreground">Has Selfie</th>
+                    <th className="p-3 text-xs font-medium text-muted-foreground">Updated</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {allSubmissions.map(v => (
+                    <tr key={v.id} className="border-t">
+                      <td className="p-3 text-xs font-medium">{v.profile?.first_name} {v.profile?.last_name}</td>
+                      <td className="p-3">
+                        <Badge variant={v.philsys_status === 'verified' ? 'default' : v.philsys_status === 'rejected' ? 'destructive' : 'secondary'} className="text-[10px] capitalize">
+                          {v.philsys_status}
+                        </Badge>
+                      </td>
+                      <td className="p-3">
+                        <Badge variant={v.biometric_status === 'verified' ? 'default' : v.biometric_status === 'rejected' ? 'destructive' : 'secondary'} className="text-[10px] capitalize">
+                          {v.biometric_status}
+                        </Badge>
+                      </td>
+                      <td className="p-3 text-xs">{v.screenshot_url ? '✅' : '—'}</td>
+                      <td className="p-3 text-xs">{v.id_front_url ? '✅' : '—'}</td>
+                      <td className="p-3 text-xs">{v.selfie_url ? '✅' : '—'}</td>
+                      <td className="p-3 text-xs text-muted-foreground">{new Date(v.updated_at).toLocaleDateString()}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </TabsContent>
       </Tabs>
 
       {/* Reject Dialog */}
