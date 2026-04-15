@@ -91,10 +91,13 @@ const AdminDashboard = () => {
   const [rejectDialog, setRejectDialog] = useState<{ open: boolean; verificationId: string; userId: string; field: 'philsys_status' | 'biometric_status' }>({ open: false, verificationId: '', userId: '', field: 'philsys_status' });
   const [rejectReason, setRejectReason] = useState('');
 
+  const { loading: authLoading } = useAuth();
+
   useEffect(() => {
+    if (authLoading) return; // wait for auth + roles to finish loading
     if (!isAdmin) { navigate('/'); return; }
     fetchData();
-  }, [isAdmin, navigate]);
+  }, [isAdmin, authLoading, navigate]);
 
   const fetchData = async () => {
     const [vRes, seRes, laRes, rpRes] = await Promise.all([
