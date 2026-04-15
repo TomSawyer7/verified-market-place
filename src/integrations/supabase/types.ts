@@ -466,6 +466,7 @@ export type Database = {
           liveness_result: boolean | null
           ocr_name: string | null
           philsys_status: Database["public"]["Enums"]["user_status"]
+          qr_code_url: string | null
           qr_verified: boolean | null
           risk_score: number | null
           screenshot_checks: Json | null
@@ -498,6 +499,7 @@ export type Database = {
           liveness_result?: boolean | null
           ocr_name?: string | null
           philsys_status?: Database["public"]["Enums"]["user_status"]
+          qr_code_url?: string | null
           qr_verified?: boolean | null
           risk_score?: number | null
           screenshot_checks?: Json | null
@@ -530,6 +532,7 @@ export type Database = {
           liveness_result?: boolean | null
           ocr_name?: string | null
           philsys_status?: Database["public"]["Enums"]["user_status"]
+          qr_code_url?: string | null
           qr_verified?: boolean | null
           risk_score?: number | null
           screenshot_checks?: Json | null
