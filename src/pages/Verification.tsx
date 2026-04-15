@@ -66,6 +66,8 @@ const Verification = () => {
     id_marital_status: '', id_place_of_birth: '',
   });
   const [savingForm, setSavingForm] = useState(false);
+  const [ocrScanning, setOcrScanning] = useState(false);
+  const [ocrFilled, setOcrFilled] = useState(false);
 
   // Step 3: Liveness (FaceTec)
   const [facetecStatus, setFacetecStatus] = useState<FaceTecStatus | null>(null);
