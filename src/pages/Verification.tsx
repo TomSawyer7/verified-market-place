@@ -126,30 +126,46 @@ const Verification = () => {
   // === Step 1: Save screenshot ===
   const handleScreenshotComplete = async (result: ScreenshotVerificationResult) => {
     setScreenshotResult(result);
-    if (!user || !verification) return;
-
-    const blob = await fetch(result.imageDataUrl).then(r => r.blob());
-    const path = `${user.id}/philsys_screenshot_${Date.now()}.png`;
-    const { error: uploadError } = await supabase.storage.from('verification-docs').upload(path, blob);
-    if (uploadError) {
-      toast.error('Failed to save screenshot. Please try again.');
+    if (!user || !verification) {
+      console.error('handleScreenshotComplete: user or verification is null', { user: !!user, verification: !!verification });
+      toast.error('Session error. Please refresh the page and try again.');
       return;
     }
 
-    await supabase.from('verifications').update({
-      screenshot_url: path,
-      screenshot_score: result.score,
-      screenshot_checks: result.checks as any,
-    }).eq('id', verification.id);
+    try {
+      const blob = await fetch(result.imageDataUrl).then(r => r.blob());
+      const path = `${user.id}/philsys_screenshot_${Date.now()}.png`;
+      const { error: uploadError } = await supabase.storage.from('verification-docs').upload(path, blob);
+      if (uploadError) {
+        console.error('Screenshot upload error:', uploadError);
+        toast.error('Failed to save screenshot. Please try again.');
+        return;
+      }
 
-    await supabase.from('audit_trail').insert({
-      user_id: user.id, action: 'philsys_screenshot_uploaded',
-      event_type: 'verification', details: `eVerify screenshot uploaded, score: ${result.score}%`,
-    });
+      const { error: updateError } = await supabase.from('verifications').update({
+        screenshot_url: path,
+        screenshot_score: result.score,
+        screenshot_checks: result.checks as any,
+      }).eq('id', verification.id);
 
-    setScreenshotSaved(true);
-    setVerification(prev => prev ? { ...prev, screenshot_url: path, screenshot_score: result.score } : null);
-    toast.success('Screenshot saved! Proceed to Step 2.');
+      if (updateError) {
+        console.error('Verification update error:', updateError);
+        toast.error('Failed to save verification data. Please try again.');
+        return;
+      }
+
+      await supabase.from('audit_trail').insert({
+        user_id: user.id, action: 'philsys_screenshot_uploaded',
+        event_type: 'verification', details: `eVerify screenshot uploaded, score: ${result.score}%`,
+      });
+
+      setScreenshotSaved(true);
+      setVerification(prev => prev ? { ...prev, screenshot_url: path, screenshot_score: result.score } : null);
+      toast.success('Screenshot saved! Proceed to Step 2.');
+    } catch (err) {
+      console.error('handleScreenshotComplete error:', err);
+      toast.error('An error occurred while saving the screenshot. Please try again.');
+    }
   };
 
   // === Step 2: Upload ID docs ===

@@ -275,7 +275,7 @@ const PhilSysScreenshotVerifier = ({
     try {
       const res = await analyzeScreenshotAuthenticity(dataUrl, registeredName);
       setResult(res);
-      onVerificationComplete(res);
+      await onVerificationComplete(res);
       if (res.passed) {
         toast.success('Screenshot verification passed!');
       } else {
