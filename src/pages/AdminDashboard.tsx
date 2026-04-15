@@ -138,7 +138,7 @@ const AdminDashboard = () => {
     const failedLogins = (laRes.data || []).filter((a: any) => !a.success).length;
     setStats({
       total: enriched.length,
-      pending: enriched.filter(v => (v.philsys_status === 'pending' && v.id_front_url) || (v.biometric_status === 'pending' && v.selfie_url)).length,
+      pending: enriched.filter(v => (v.philsys_status === 'pending' && v.screenshot_url) || (v.biometric_status === 'pending' && v.id_front_url)).length,
       verified: enriched.filter(v => v.philsys_status === 'verified' && v.biometric_status === 'verified').length,
       secEvents: (seRes.data || []).filter((e: any) => e.severity === 'warning' || e.severity === 'critical').length,
       failedLogins,
