@@ -157,9 +157,14 @@ const Login = () => {
             </div>
           </div>
 
-          <Button variant="outline" className="w-full h-11" asChild>
-            <Link to="/register">Create an account</Link>
-          </Button>
+          <div className="space-y-2">
+            <Button type="button" variant="outline" className="w-full h-11" onClick={handleGoogle} disabled={googleLoading}>
+              {googleLoading ? 'Redirecting...' : 'Continue with Google'}
+            </Button>
+            <Button variant="ghost" className="w-full h-11" asChild>
+              <Link to="/register">Create an account</Link>
+            </Button>
+          </div>
         </CardContent>
       </Card>
     </div>
