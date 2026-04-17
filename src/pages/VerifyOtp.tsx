@@ -23,7 +23,7 @@ const VerifyOtp = () => {
   const handleVerify = async () => {
     if (code.length !== 6) return;
     setLoading(true);
-    const { error } = await supabase.auth.verifyOtp({ email, token: code, type: 'email' });
+    const { error } = await supabase.auth.verifyOtp({ email, token: code, type: 'signup' });
     setLoading(false);
     if (error) {
       toast.error(error.message || 'Invalid or expired code.');
