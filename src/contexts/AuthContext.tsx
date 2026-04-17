@@ -131,10 +131,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, [syncUserState]);
 
   const signUp = async (email: string, password: string, metadata: { first_name: string; last_name: string }) => {
+    // No emailRedirectTo → Supabase sends a 6-digit OTP code instead of a magic link
     const { error } = await supabase.auth.signUp({
       email,
       password,
-      options: { data: metadata, emailRedirectTo: window.location.origin },
+      options: { data: metadata },
     });
     return { error };
   };
