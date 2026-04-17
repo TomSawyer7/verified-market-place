@@ -78,7 +78,7 @@ interface ReportedListing {
 }
 
 const AdminDashboard = () => {
-  const { isAdmin, user } = useAuth();
+  const { isAdmin, user, loading: authLoading } = useAuth();
   const navigate = useNavigate();
   const [verifications, setVerifications] = useState<VerificationRow[]>([]);
   const [securityEvents, setSecurityEvents] = useState<SecurityEvent[]>([]);
@@ -90,8 +90,6 @@ const AdminDashboard = () => {
   const [promoting, setPromoting] = useState(false);
   const [rejectDialog, setRejectDialog] = useState<{ open: boolean; verificationId: string; userId: string; field: 'philsys_status' | 'biometric_status' }>({ open: false, verificationId: '', userId: '', field: 'philsys_status' });
   const [rejectReason, setRejectReason] = useState('');
-
-  const authLoading = loading;
 
   useEffect(() => {
     if (authLoading) return; // wait for auth + roles to finish loading
