@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
-import { lovable } from '@/integrations/lovable';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -22,9 +21,20 @@ const Login = () => {
 
   const handleGoogle = async () => {
     setGoogleLoading(true);
-    const result = await lovable.auth.signInWithOAuth('google', { redirect_uri: window.location.origin + '/marketplace' });
-    if (result.error) {
-      toast.error('Google sign-in failed.');
+
+    try {
+      const { lovable } = await import('@/integrations/lovable');
+      const result = await lovable.auth.signInWithOAuth('google', {
+        redirect_uri: window.location.origin + '/marketplace',
+      });
+
+      if (result.error) {
+        toast.error('Google sign-in failed.');
+        setGoogleLoading(false);
+      }
+    } catch (error) {
+      console.error('Google auth module failed to load:', error);
+      toast.error('Google sign-in is temporarily unavailable.');
       setGoogleLoading(false);
     }
   };
