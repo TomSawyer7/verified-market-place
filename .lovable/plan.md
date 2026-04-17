@@ -1,54 +1,69 @@
 
-The user wants Google OAuth, email OTP via Gmail SMTP, and forgot-password tokens — all "connected to Supabase". This stack is React + Vite + Lovable Cloud (Supabase), no Node/Express backend. So I must translate Node-style requirements (Nodemailer, /auth/* routes, utils/mailer.js) into the actual stack: Supabase Auth + Edge Functions.
+Goal: make registration reliably send a real email verification OTP and make the current UI match the actual backend behavior.
 
-Key reframing for the user:
-- **Google OAuth**: Lovable Cloud has managed Google OAuth — no Client ID/Secret needed in code. But user supplied their own credentials, so we'll wire BYOK Google in the Cloud auth settings (not in `.env` — Vite `.env` is public-bundled and unsafe for secrets).
-- **Email OTP**: Supabase Auth already supports email OTP natively. No Nodemailer needed. If they truly want Gmail SMTP branding, configure Supabase SMTP with Gmail app password (stored as Supabase secret, not Vite `.env`).
-- **Forgot password**: Already implemented (`ForgotPassword.tsx`, `ResetPassword.tsx`) using Supabase's secure token system (10-min expiry built-in). Just verify it works.
-- **Express-style routes** (`/auth/register`, `utils/mailer.js`): Not applicable — replaced by Supabase Auth client + edge functions where needed.
-- **Runtime error**: `useAuth must be used within AuthProvider` — likely a stale HMR issue, will verify AuthProvider wraps App.
+What I found
+- The frontend is already built for a 6-digit signup OTP flow:
+  - `Register.tsx` signs up then redirects to `/verify-otp`
+  - `VerifyOtp.tsx` calls `supabase.auth.verifyOtp({ email, token, type: 'signup' })`
+  - `AuthContext.tsx` calls `supabase.auth.signUp(...)` without `emailRedirectTo`
+- Routing is correct and `AuthProvider` is wrapped correctly, so the current issue is not the page flow.
+- The likely problem is backend auth email behavior: the auth system is still using the default confirmation email / magic-link style, so the app expects a 6-digit code while the backend email being sent does not match that flow. That mismatch is why users don’t get the OTP experience the UI promises.
 
-Plan (concise):
+Plan
+1. Audit the auth signup behavior against the backend email settings
+- Confirm whether email/password signup is currently configured to require confirmation.
+- Confirm whether signup emails are default auth emails or custom auth email templates.
+- Check if the project email setup is incomplete or still using the default link-based template.
 
-## Plan: Google OAuth + Email OTP + Password Reset
+2. Fix the mismatch between UI and auth email delivery
+- If the backend supports OTP-style signup confirmation, keep the current `/verify-otp` page and align the email template so it sends/displays the code users must enter.
+- If the backend is still link-based, change one of these two things so they match:
+  - preferred: configure auth emails to support the OTP-style confirmation flow
+  - fallback: temporarily switch the UI back to link-based confirmation until OTP email delivery is correctly configured
 
-### 1. Google OAuth (BYOK)
-- Switch `Register.tsx` and `Login.tsx` to support "Continue with Google" button using `supabase.auth.signInWithOAuth({ provider: 'google' })`.
-- User configures their Client ID/Secret in **Cloud → Auth Settings → Google provider** (secure server-side storage, not `.env`). I'll show the button to open that panel.
-- **Why not `.env`**: Vite bundles `VITE_*` vars into the public JS — secrets would leak. Supabase stores them server-side.
+3. Configure auth email delivery properly
+- If custom auth email templates are required, scaffold the managed auth email templates and deploy the required auth email hook.
+- Apply the project’s existing branding/tone to the signup and recovery email templates.
+- Verify that the signup email uses the OTP/token content instead of only a confirmation URL.
 
-### 2. Email OTP on Signup
-- Replace current "magic link confirmation" signup with **6-digit email OTP** flow:
-  - `Register.tsx`: call `supabase.auth.signUp()` then redirect to new `/verify-otp` page.
-  - New `VerifyOtp.tsx` page: 6-digit input, calls `supabase.auth.verifyOtp({ email, token, type: 'signup' })`.
-  - 5-min expiry is Supabase default.
-- Optionally configure **custom SMTP (Gmail)** in Cloud → Auth Settings → SMTP, using `EMAIL_USER` + Gmail App Password as Supabase secrets. I'll prompt the user via the Cloud panel button — no code changes needed for SMTP itself.
+4. Handle platform prerequisites
+- If custom auth emails need a sender domain, I’ll surface that as a required backend setup step.
+- Since email domain setup requires workspace admin/owner permissions, if the workspace is missing that access I’ll identify it immediately as the blocker instead of wasting more attempts.
 
-### 3. Forgot Password
-- Already built: `ForgotPassword.tsx` → `supabase.auth.resetPasswordForEmail()` → email link → `ResetPassword.tsx` → `supabase.auth.updateUser({ password })`.
-- Verify the route is wired in `App.tsx`. If missing, add it.
+5. Harden the frontend flow
+- Improve signup error handling so the app distinguishes:
+  - email delivery/setup issue
+  - account already exists
+  - confirmation required
+  - invalid/expired OTP
+- Improve `VerifyOtp` so resend, expired-code handling, and recovery path are clearer.
+- Make sure login messaging does not mislead users if signup confirmation is still pending.
 
-### 4. Fix runtime error
-- `useAuth must be used within AuthProvider` — verify `<AuthProvider>` wraps `<App>` in `main.tsx` / `App.tsx`. Fix if broken.
+6. End-to-end verification after implementation
+- Test registration with a fresh email.
+- Confirm an actual email arrives.
+- Confirm the email contains the expected OTP flow content.
+- Confirm the entered 6-digit code verifies successfully and the user can then sign in.
+- Re-test forgot-password so that recovery emails still work after the auth email changes.
 
-### 5. Files touched
-- `src/pages/Register.tsx` — add Google button, redirect to OTP after signup
-- `src/pages/Login.tsx` — add Google button
-- `src/pages/VerifyOtp.tsx` — **new**, 6-digit OTP entry
-- `src/App.tsx` — add `/verify-otp` route, ensure `/reset-password` route exists
-- Verify `AuthProvider` wrapping
+Files likely involved
+- `src/contexts/AuthContext.tsx`
+- `src/pages/Register.tsx`
+- `src/pages/VerifyOtp.tsx`
+- `src/pages/Login.tsx`
+- `supabase/functions/auth-email-hook/*` if auth email templates are scaffolded
+- `supabase/functions/_shared/email-templates/*` if custom auth emails are needed
+- `supabase/config.toml` only if scaffolded auth email hook requires config
 
-### What I will NOT do (and why)
-- ❌ Add `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET`/`EMAIL_PASS` to `.env` — Vite exposes these to the browser. They go in **Cloud Auth Settings** (server-side).
-- ❌ Build Node Express routes (`/auth/register`, `utils/mailer.js`) — this is a Vite SPA with Supabase, not a Node backend. The equivalent is Supabase Auth client calls + edge functions.
-- ❌ Use Nodemailer — Supabase handles SMTP delivery once Gmail SMTP is configured in the dashboard.
+Technical details
+- Current code is not the main failure point; the app logic already assumes an OTP verification flow.
+- The real problem is an auth/email configuration mismatch: frontend expects `verifyOtp(type: 'signup')`, but the outgoing signup email behavior appears to still be link-based or not properly set up.
+- In implementation mode I will verify the backend email setup first, then either:
+  - finish the managed auth email template setup so signup sends the correct OTP-style email, or
+  - realign the frontend to the actual auth delivery mode if OTP cannot be enabled without required admin/domain setup.
+- I will not use insecure workarounds like disabling verification unless you explicitly want that as a fallback.
 
-### Outcome
-- Working "Continue with Google" on Login + Register
-- 6-digit email OTP required before account activation
-- Existing password reset flow verified
-- AuthProvider error gone
-- All secrets stored securely server-side in Cloud (never in client `.env`)
-
-### After approval
-I'll need you to click two buttons to configure server-side secrets (Google credentials + Gmail App Password). I'll provide them after the code is in place.
+Expected outcome
+- New users receive a real verification email that matches the on-screen flow.
+- The signup flow stops misleading users about a “6-digit code” unless that code is actually what is sent.
+- Registration, resend, verification, and login all behave consistently end-to-end.
