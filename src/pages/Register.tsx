@@ -1,11 +1,12 @@
 import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
+import { lovable } from '@/integrations/lovable';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { ShieldCheck, Eye, EyeOff, Mail } from 'lucide-react';
+import { ShieldCheck, Eye, EyeOff } from 'lucide-react';
 import { toast } from 'sonner';
 
 const Register = () => {
@@ -16,9 +17,18 @@ const Register = () => {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [success, setSuccess] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
   const { signUp } = useAuth();
   const navigate = useNavigate();
+
+  const handleGoogle = async () => {
+    setGoogleLoading(true);
+    const result = await lovable.auth.signInWithOAuth('google', { redirect_uri: window.location.origin + '/marketplace' });
+    if (result.error) {
+      toast.error('Google sign-in failed.');
+      setGoogleLoading(false);
+    }
+  };
 
   const emailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
   const passwordsMatch = password === confirmPassword;
@@ -45,8 +55,8 @@ const Register = () => {
         return;
       }
 
-      setSuccess(true);
-      toast.success('Registration successful!');
+      toast.success('Account created! Check your email for the 6-digit code.');
+      navigate('/verify-otp', { state: { email } });
     } catch (err) {
       console.error("Registration Error:", err);
       toast.error("Something went wrong. Please try again.");
@@ -54,29 +64,6 @@ const Register = () => {
       setLoading(false);
     }
   };
-
-  if (success) {
-    return (
-      <div className="min-h-[calc(100vh-3.5rem)] flex items-center justify-center p-4">
-        <Card className="w-full max-w-sm border text-center">
-          <CardContent className="pt-6 space-y-4">
-            <div className="flex justify-center">
-              <div className="h-12 w-12 rounded-full bg-green-100 flex items-center justify-center">
-                <Mail className="h-6 w-6 text-green-600" />
-              </div>
-            </div>
-            <h2 className="text-xl font-bold">Check your email!</h2>
-            <p className="text-sm text-muted-foreground">
-              We sent a confirmation link to <b>{email}</b>. Please verify your email before signing in.
-            </p>
-            <Button variant="default" className="w-full" onClick={() => navigate('/login')}>
-              Go to Login
-            </Button>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
 
   return (
     <div className="min-h-[calc(100vh-3.5rem)] flex items-center justify-center p-4">
@@ -121,6 +108,15 @@ const Register = () => {
               {loading ? 'Creating account...' : 'Create account'}
             </Button>
           </form>
+          <div className="relative my-4">
+            <div className="absolute inset-0 flex items-center"><span className="w-full border-t" /></div>
+            <div className="relative flex justify-center text-[10px] uppercase">
+              <span className="bg-background px-2 text-muted-foreground">Or</span>
+            </div>
+          </div>
+          <Button type="button" variant="outline" className="w-full" onClick={handleGoogle} disabled={googleLoading}>
+            {googleLoading ? 'Redirecting...' : 'Continue with Google'}
+          </Button>
           <p className="text-center text-xs mt-4">
             Already have an account? <Link to="/login" className="underline font-bold">Sign in</Link>
           </p>
