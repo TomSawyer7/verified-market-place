@@ -1,11 +1,12 @@
 import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
+import { lovable } from '@/integrations/lovable';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { ShieldCheck, Eye, EyeOff, Mail } from 'lucide-react';
+import { ShieldCheck, Eye, EyeOff } from 'lucide-react';
 import { toast } from 'sonner';
 
 const Register = () => {
@@ -45,8 +46,8 @@ const Register = () => {
         return;
       }
 
-      setSuccess(true);
-      toast.success('Registration successful!');
+      toast.success('Account created! Check your email for the 6-digit code.');
+      navigate('/verify-otp', { state: { email } });
     } catch (err) {
       console.error("Registration Error:", err);
       toast.error("Something went wrong. Please try again.");
@@ -54,29 +55,6 @@ const Register = () => {
       setLoading(false);
     }
   };
-
-  if (success) {
-    return (
-      <div className="min-h-[calc(100vh-3.5rem)] flex items-center justify-center p-4">
-        <Card className="w-full max-w-sm border text-center">
-          <CardContent className="pt-6 space-y-4">
-            <div className="flex justify-center">
-              <div className="h-12 w-12 rounded-full bg-green-100 flex items-center justify-center">
-                <Mail className="h-6 w-6 text-green-600" />
-              </div>
-            </div>
-            <h2 className="text-xl font-bold">Check your email!</h2>
-            <p className="text-sm text-muted-foreground">
-              We sent a confirmation link to <b>{email}</b>. Please verify your email before signing in.
-            </p>
-            <Button variant="default" className="w-full" onClick={() => navigate('/login')}>
-              Go to Login
-            </Button>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
 
   return (
     <div className="min-h-[calc(100vh-3.5rem)] flex items-center justify-center p-4">
