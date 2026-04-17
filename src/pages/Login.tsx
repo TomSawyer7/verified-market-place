@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
+import { lovable } from '@/integrations/lovable';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -15,8 +16,18 @@ const Login = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
   const { signIn } = useAuth();
   const navigate = useNavigate();
+
+  const handleGoogle = async () => {
+    setGoogleLoading(true);
+    const result = await lovable.auth.signInWithOAuth('google', { redirect_uri: window.location.origin + '/marketplace' });
+    if (result.error) {
+      toast.error('Google sign-in failed.');
+      setGoogleLoading(false);
+    }
+  };
 
   useEffect(() => {
     const saved = localStorage.getItem('trustmart_remember_email');
