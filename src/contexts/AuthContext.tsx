@@ -5,11 +5,6 @@ import type { User, Session } from '@supabase/supabase-js';
 interface Profile {
   id: string;
   first_name: string;
-<<<<<<< HEAD
-  last_name: string;
-  email: string;
-  status: string;
-=======
   middle_name?: string;
   last_name: string;
   email?: string;
@@ -20,7 +15,6 @@ interface Profile {
   created_at?: string;
   avatar_url?: string;
   bio?: string;
->>>>>>> e2adefbebe2b8cce350d7dbeccbd44d973e181ff
 }
 
 interface AuthContextType {
@@ -28,15 +22,13 @@ interface AuthContextType {
   session: Session | null;
   profile: Profile | null;
   loading: boolean;
-<<<<<<< HEAD
-=======
   isAuthenticated: boolean;
   isVerified: boolean;
   isAdmin: boolean;
->>>>>>> e2adefbebe2b8cce350d7dbeccbd44d973e181ff
   signUp: (email: string, password: string, metadata: { first_name: string; last_name: string }) => Promise<{ error: any }>;
   signIn: (email: string, password: string) => Promise<{ error: any }>;
   signOut: () => Promise<void>;
+  refreshProfile: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | null>(null);
@@ -52,6 +44,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [session, setSession] = useState<Session | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
+  const [isAdmin, setIsAdmin] = useState(false);
 
   const fetchProfile = useCallback(async (userId: string) => {
     const { data, error } = await supabase.from('profiles').select('*').eq('id', userId).single();
@@ -63,29 +56,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setProfile(data as Profile);
   }, []);
 
-<<<<<<< HEAD
-  useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      setUser(session?.user ?? null);
-      if (session?.user) fetchProfile(session.user.id);
-      setLoading(false);
-    });
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
-      setSession(session);
-      setUser(session?.user ?? null);
-      if (session?.user) {
-        await fetchProfile(session.user.id);
-      } else {
-        setProfile(null);
-      }
-      setLoading(false);
-    });
-
-    return () => subscription.unsubscribe();
-  }, [fetchProfile]);
-=======
   const fetchRole = useCallback(async (userId: string) => {
     const { data, error } = await supabase.from('user_roles').select('role').eq('user_id', userId);
     if (error) {
@@ -159,7 +129,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       document.removeEventListener('visibilitychange', handleWindowFocus);
     };
   }, [syncUserState]);
->>>>>>> e2adefbebe2b8cce350d7dbeccbd44d973e181ff
 
   const signUp = async (email: string, password: string, metadata: { first_name: string; last_name: string }) => {
     const { error } = await supabase.auth.signUp({
@@ -180,17 +149,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setUser(null);
     setSession(null);
     setProfile(null);
+    setIsAdmin(false);
   };
 
   const isAuthenticated = !!user;
   const isVerified = profile?.status === 'verified';
 
   return (
-<<<<<<< HEAD
-    <AuthContext.Provider value={{ user, session, profile, loading, signUp, signIn, signOut }}>
-=======
     <AuthContext.Provider value={{ user, session, profile, loading, isAuthenticated, isVerified, isAdmin, signUp, signIn, signOut, refreshProfile }}>
->>>>>>> e2adefbebe2b8cce350d7dbeccbd44d973e181ff
       {children}
     </AuthContext.Provider>
   );
