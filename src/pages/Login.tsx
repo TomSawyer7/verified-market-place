@@ -6,11 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-<<<<<<< HEAD
-import { ShieldCheck, Lock, Eye, EyeOff, Mail } from 'lucide-react';
-=======
 import { ShieldCheck, Eye, EyeOff, Mail } from 'lucide-react';
->>>>>>> e2adefbebe2b8cce350d7dbeccbd44d973e181ff
 import { toast } from 'sonner';
 
 const Login = () => {
@@ -22,7 +18,6 @@ const Login = () => {
   const { signIn } = useAuth();
   const navigate = useNavigate();
 
-  // Load saved email
   useEffect(() => {
     const saved = localStorage.getItem('trustmart_remember_email');
     if (saved) {
@@ -41,12 +36,6 @@ const Login = () => {
       const { error } = await signIn(email, password);
 
       if (error) {
-<<<<<<< HEAD
-        // Importante: Patayin ang loading spinner kapag may error
-        setLoading(false); 
-        
-=======
->>>>>>> e2adefbebe2b8cce350d7dbeccbd44d973e181ff
         if (error.message?.toLowerCase().includes('confirm')) {
           toast.error('Email confirmation is required. Please check your inbox.');
         } else {
@@ -55,10 +44,6 @@ const Login = () => {
         return;
       }
 
-<<<<<<< HEAD
-      // Success logic
-=======
->>>>>>> e2adefbebe2b8cce350d7dbeccbd44d973e181ff
       if (rememberMe) {
         localStorage.setItem('trustmart_remember_email', email);
       } else {
@@ -67,19 +52,11 @@ const Login = () => {
 
       toast.success('Welcome back!');
       navigate('/marketplace');
-<<<<<<< HEAD
-
-    } catch (err) {
-      console.error("Login failed:", err);
-      setLoading(false);
-      toast.error("An unexpected error occurred. Please refresh.");
-=======
     } catch (err) {
       console.error("Login failed:", err);
       toast.error("An unexpected error occurred. Please refresh.");
     } finally {
       setLoading(false);
->>>>>>> e2adefbebe2b8cce350d7dbeccbd44d973e181ff
     }
   };
 
@@ -117,16 +94,7 @@ const Login = () => {
             </div>
             
             <div className="space-y-2">
-<<<<<<< HEAD
-              <div className="flex justify-between items-center">
-                <Label htmlFor="password" name="password" className="text-sm font-medium">Password</Label>
-                <Link to="/forgot-password" name="forgot" className="text-xs text-primary hover:underline">
-                  Forgot password?
-                </Link>
-              </div>
-=======
               <Label htmlFor="password" className="text-sm font-medium">Password</Label>
->>>>>>> e2adefbebe2b8cce350d7dbeccbd44d973e181ff
               <div className="relative">
                 <Input 
                   id="password" 
@@ -148,14 +116,11 @@ const Login = () => {
                   {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                 </Button>
               </div>
-<<<<<<< HEAD
-=======
               <div className="text-right">
                 <Link to="/forgot-password" className="text-xs text-primary hover:underline">
                   Forgot password?
                 </Link>
               </div>
->>>>>>> e2adefbebe2b8cce350d7dbeccbd44d973e181ff
             </div>
 
             <div className="flex items-center space-x-2 py-1">

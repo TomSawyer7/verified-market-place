@@ -35,36 +35,16 @@ const Register = () => {
     setLoading(true);
 
     try {
-<<<<<<< HEAD
-      // Ang signUp function na ang bahala sa lahat. 
-      // Ang database trigger na ang gagawa ng profile record mo.
-=======
->>>>>>> e2adefbebe2b8cce350d7dbeccbd44d973e181ff
       const { error } = await signUp(email, password, { 
         first_name: firstName, 
         last_name: lastName 
       });
 
       if (error) {
-<<<<<<< HEAD
-        setLoading(false);
-=======
->>>>>>> e2adefbebe2b8cce350d7dbeccbd44d973e181ff
         toast.error(error.message);
         return;
       }
 
-<<<<<<< HEAD
-      // Success!
-      setLoading(false);
-      setSuccess(true);
-      toast.success('Registration successful!');
-
-    } catch (err) {
-      setLoading(false);
-      console.error("Registration Error:", err);
-      toast.error("Something went wrong. Please try again.");
-=======
       setSuccess(true);
       toast.success('Registration successful!');
     } catch (err) {
@@ -72,7 +52,6 @@ const Register = () => {
       toast.error("Something went wrong. Please try again.");
     } finally {
       setLoading(false);
->>>>>>> e2adefbebe2b8cce350d7dbeccbd44d973e181ff
     }
   };
 
@@ -88,11 +67,7 @@ const Register = () => {
             </div>
             <h2 className="text-xl font-bold">Check your email!</h2>
             <p className="text-sm text-muted-foreground">
-<<<<<<< HEAD
-              We sent a link to <b>{email}</b>. (Kung in-OFF mo na ang confirm email sa Supabase, pwede ka na dumiretso sa Login).
-=======
               We sent a confirmation link to <b>{email}</b>. Please verify your email before signing in.
->>>>>>> e2adefbebe2b8cce350d7dbeccbd44d973e181ff
             </p>
             <Button variant="default" className="w-full" onClick={() => navigate('/login')}>
               Go to Login
